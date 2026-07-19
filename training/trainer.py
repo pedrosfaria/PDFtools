@@ -86,7 +86,15 @@ class InvoiceTrainer:
         self.current_filename = ""
         self.current_provider = "coopernico"
         self.current_annotations: Dict[str, List[Tuple[int, int, str]]] = {}
+        self._parser_instances = {}  # Cache de instancias de parsers
         
+    def _get_parser_instance(self, parser_class):
+        """Obter instancia de um parser (com cache)."""
+        class_name = parser_class.__name__
+        if class_name not in self._parser_instances:
+            self._parser_instances[class_name] = parser_class()
+        return self._parser_instances[class_name]
+    
     def load_pdf(self, pdf_path: str) -> Tuple[str, str]:
         """
         Carregar um ficheiro PDF e extrair texto.
@@ -114,7 +122,8 @@ class InvoiceTrainer:
         """Detetar fornecedor do texto."""
         from pdf_extractor.parsers import PARSERS
         
-        for provider, parser in PARSERS.items():
+        for provider, parser_class in PARSERS.items():
+            parser = self._get_parser_instance(parser_class)
             if parser.detect(text):
                 return provider
         
