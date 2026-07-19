@@ -12,7 +12,7 @@ Uso:
     print(_("Hello"))  # Imprime "Ola" se o idioma for pt
 """
 
-import gettext
+import gettext as gettext_module
 import os
 from pathlib import Path
 
@@ -51,7 +51,7 @@ def set_language(lang: str):
     
     try:
         # Tentar carregar traducao
-        translation = gettext.translation(
+        translation = gettext_module.translation(
             'messages',
             localedir=str(LOCALE_DIR),
             languages=[lang],
@@ -60,7 +60,7 @@ def set_language(lang: str):
         _current_translation = translation
     except Exception:
         # Se nao encontrar traducao, usar gettext nulo
-        _current_translation = gettext.NullTranslations()
+        _current_translation = gettext_module.NullTranslations()
 
 
 def get_language() -> str:

@@ -24,12 +24,12 @@ from pathlib import Path
 # Adicionar o diretorio ao path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, session, jsonify, gettext
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, session, jsonify
 from werkzeug.utils import secure_filename
 from training.trainer import InvoiceTrainer
 from training.patterns import PatternManager
 from pdf_extractor import PDFExtractor
-from translations import set_language, get_language, SUPPORTED_LANGUAGES
+from translations import set_language, get_language, gettext as _, SUPPORTED_LANGUAGES
 import json
 
 # Configuracao da aplicacao
@@ -57,14 +57,6 @@ extractor = PDFExtractor()
 set_language('pt')  # Portugues por omissao
 
 
-def get_translated_text(text: str) -> str:
-    """Obter texto traduzido."""
-    try:
-        return gettext(text)
-    except Exception:
-        return text
-
-
 def allowed_file(filename):
     """Verificar se o ficheiro tem extensao permitida."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -80,7 +72,8 @@ def index():
                          examples=examples,
                          fields=trainer.get_fields(),
                          current_language=get_language(),
-                         supported_languages=SUPPORTED_LANGUAGES)
+                         supported_languages=SUPPORTED_LANGUAGES,
+                         _=_)  # Passar funcao de traducao para template
 
 
 @app.route('/set_language/<lang>')
@@ -89,9 +82,9 @@ def set_language_route(lang):
     if lang in SUPPORTED_LANGUAGES:
         set_language(lang)
         session['language'] = lang
-        flash(get_translated_text('Language changed successfully!'), 'success')
+        flash(_('Language changed successfully!'), 'success')
     else:
-        flash(get_translated_text('Invalid language!'), 'error')
+        flash(_('Invalid language!'), 'error')
     
     return redirect(request.referrer or url_for('index'))
 
@@ -101,13 +94,13 @@ def upload_file():
     """Carregar ficheiro PDF para treino."""
     if request.method == 'POST':
         if 'file' not in request.files:
-            flash(get_translated_text('No file selected'), 'error')
+            flash(_('No file selected'), 'error')
             return redirect(request.url)
         
         file = request.files['file']
         
         if file.filename == '':
-            flash(get_translated_text('No file selected'), 'error')
+            flash(_('No file selected'), 'error')
             return redirect(request.url)
         
         if file and allowed_file(file.filename):
@@ -126,25 +119,26 @@ def upload_file():
                 # Limpar anotacoes anteriores
                 trainer.clear_annotations()
                 
-                flash(get_translated_text('File uploaded successfully!'), 'success')
+                flash(_('File uploaded successfully!'), 'success')
                 return redirect(url_for('train'))
             except Exception as e:
-                flash(f"{get_translated_text('Error loading file')}: {e}", 'error')
+                flash(f"{_('Error loading file')}: {e}", 'error')
                 return redirect(request.url)
         else:
-            flash(get_translated_text('Invalid file type. Only PDF allowed.'), 'error')
+            flash(_('Invalid file type. Only PDF allowed.'), 'error')
             return redirect(request.url)
     
     return render_template('training/upload.html',
                          current_language=get_language(),
-                         supported_languages=SUPPORTED_LANGUAGES)
+                         supported_languages=SUPPORTED_LANGUAGES,
+                         _=_)  # Passar funcao de traducao
 
 
 @app.route('/train', methods=['GET', 'POST'])
 def train():
     """Pagina de treino."""
     if 'current_text' not in session:
-        flash(get_translated_text('No file loaded. Please upload a file first.'), 'error')
+        flash(_('No file loaded. Please upload a file first.'), 'error')
         return redirect(url_for('upload_file'))
     
     # Atualizar treinador com texto da sessao
@@ -165,7 +159,7 @@ def train():
             if field_name and start >= 0 and end > start:
                 trainer.add_annotation(field_name, start, end, text)
                 session['annotations'] = trainer.current_annotations
-                flash(get_translated_text('Annotation added!'), 'success')
+                flash(_('Annotation added!'), 'success')
         
         elif action == 'remove_annotation':
             field_name = request.form.get('field_name')
@@ -173,17 +167,17 @@ def train():
             
             if field_name and trainer.remove_annotation(field_name, index):
                 session['annotations'] = trainer.current_annotations
-                flash(get_translated_text('Annotation removed!'), 'success')
+                flash(_('Annotation removed!'), 'success')
         
         elif action == 'clear_annotations':
             trainer.clear_annotations()
             session.pop('annotations', None)
-            flash(get_translated_text('All annotations cleared!'), 'success')
+            flash(_('All annotations cleared!'), 'success')
         
         elif action == 'learn':
             learned = trainer.learn_from_annotations()
             trainer.save_training_example()
-            flash(get_translated_text('Patterns learned and saved!'), 'success')
+            flash(_('Patterns learned and saved!'), 'success')
             return redirect(url_for('train'))
         
         elif action == 'test_extraction':
@@ -213,14 +207,15 @@ def train():
                          suggestions=suggestions,
                          highlighted_text=trainer.get_text_with_highlights(),
                          current_language=get_language(),
-                         supported_languages=SUPPORTED_LANGUAGES)
+                         supported_languages=SUPPORTED_LANGUAGES,
+                         _=_)  # Passar funcao de traducao
 
 
 @app.route('/test_extraction')
 def test_extraction():
     """Testar extracao com padroes aprendidos."""
     if 'current_text' not in session:
-        flash(get_translated_text('No file loaded.'), 'error')
+        flash(_('No file loaded.'), 'error')
         return redirect(url_for('upload_file'))
     
     # Atualizar treinador
@@ -239,7 +234,8 @@ def test_extraction():
                          results=results,
                          fields=trainer.get_fields(),
                          current_language=get_language(),
-                         supported_languages=SUPPORTED_LANGUAGES)
+                         supported_languages=SUPPORTED_LANGUAGES,
+                         _=_)  # Passar funcao de traducao
 
 
 @app.route('/get_suggestions/<field_name>')
@@ -276,7 +272,7 @@ def api_extract_text():
         extracted = text[start:end].strip()
         return jsonify({"text": extracted, "start": start, "end": end})
     
-    return jsonify({"error": get_translated_text("Invalid position")}), 400
+    return jsonify({"error": _("Invalid position")}), 400
 
 
 @app.route('/api/annotate', methods=['POST'])
@@ -301,7 +297,7 @@ def api_annotate():
             }
         })
     
-    return jsonify({"success": False, "error": get_translated_text("Invalid data")}), 400
+    return jsonify({"success": False, "error": _("Invalid data")}), 400
 
 
 @app.route('/api/learn', methods=['POST'])
@@ -346,7 +342,8 @@ def list_examples():
     return render_template('training/examples.html', 
                          examples=examples,
                          current_language=get_language(),
-                         supported_languages=SUPPORTED_LANGUAGES)
+                         supported_languages=SUPPORTED_LANGUAGES,
+                         _=_)  # Passar funcao de traducao
 
 
 @app.route('/load_example/<filename>')
@@ -360,10 +357,10 @@ def load_example(filename):
         session['current_provider'] = example.provider
         session['annotations'] = example.field_annotations
         
-        flash(get_translated_text('Example loaded!'), 'success')
+        flash(_('Example loaded!'), 'success')
         return redirect(url_for('train'))
     else:
-        flash(get_translated_text('Example not found!'), 'error')
+        flash(_('Example not found!'), 'error')
         return redirect(url_for('list_examples'))
 
 
@@ -374,9 +371,9 @@ def delete_example(filename):
     
     if example_path.exists():
         example_path.unlink()
-        flash(get_translated_text('Example deleted!'), 'success')
+        flash(_('Example deleted!'), 'success')
     else:
-        flash(get_translated_text('Example not found!'), 'error')
+        flash(_('Example not found!'), 'error')
     
     return redirect(url_for('list_examples'))
 
@@ -389,7 +386,7 @@ def export_patterns():
     if patterns_file.exists():
         return send_from_directory('training', 'patterns.json', as_attachment=True)
     else:
-        flash(get_translated_text('No patterns to export!'), 'error')
+        flash(_('No patterns to export!'), 'error')
         return redirect(url_for('index'))
 
 
@@ -397,13 +394,13 @@ def export_patterns():
 def import_patterns():
     """Importar padroes."""
     if 'file' not in request.files:
-        flash(get_translated_text('No file selected!'), 'error')
+        flash(_('No file selected!'), 'error')
         return redirect(url_for('index'))
     
     file = request.files['file']
     
     if file.filename == '':
-        flash(get_translated_text('No file selected!'), 'error')
+        flash(_('No file selected!'), 'error')
         return redirect(url_for('index'))
     
     if file and file.filename.endswith('.json'):
@@ -415,10 +412,10 @@ def import_patterns():
         global trainer
         trainer = InvoiceTrainer(patterns_file=str(filepath))
         
-        flash(get_translated_text('Patterns imported successfully!'), 'success')
+        flash(_('Patterns imported successfully!'), 'success')
         return redirect(url_for('index'))
     else:
-        flash(get_translated_text('Invalid file!'), 'error')
+        flash(_('Invalid file!'), 'error')
         return redirect(url_for('index'))
 
 
@@ -440,7 +437,7 @@ def clear_all():
     global trainer
     trainer = InvoiceTrainer()
     
-    flash(get_translated_text('All training data deleted!'), 'success')
+    flash(_('All training data deleted!'), 'success')
     return redirect(url_for('index'))
 
 
