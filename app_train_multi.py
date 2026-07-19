@@ -133,11 +133,27 @@ def upload_file():
             filepath = UPLOAD_FOLDER / filename
             file.save(str(filepath))
             
-            # Guardar informacao na sessao
-            session['current_file'] = filename
-            session['filepath'] = str(filepath)
-            
-            return redirect(url_for('select_text', filename=filename))
+            # Extrair texto do PDF imediatamente
+            try:
+                text = extract_text_from_pdf(str(filepath))
+                
+                if not text:
+                    flash(_('No text could be extracted from the PDF. The file may be a scanned image.'), 'error')
+                    return redirect(url_for('upload_file'))
+                
+                # Guardar informacao na sessao
+                session['current_file'] = filename
+                session['filepath'] = str(filepath)
+                session['extracted_text'] = text
+                session['current_filename'] = filename
+                
+                # Redirecionar para treino com o texto
+                flash(_('File uploaded successfully! Text extracted.'), 'success')
+                return redirect(url_for('train'))
+                
+            except Exception as e:
+                flash(_('Error processing PDF: ') + str(e), 'error')
+                return redirect(url_for('upload_file'))
         else:
             flash(_('Invalid file type. Only PDF files are allowed.'), 'error')
     
@@ -194,7 +210,7 @@ def save_pattern():
         
         if not field or not text:
             flash(_('Field and text are required'), 'error')
-            return redirect(url_for('select_text', filename=filename))
+            return redirect(url_for('train'))
         
         try:
             # Criar padrao e guardar
@@ -223,6 +239,11 @@ def train():
     # Obter texto da sessao
     extracted_text = session.get('extracted_text', '')
     current_filename = session.get('current_filename', '')
+    
+    # Se nao houver texto, redirecionar para upload
+    if not extracted_text:
+        flash(_('Please upload a PDF file first.'), 'info')
+        return redirect(url_for('upload_file'))
     
     # Criar lista de padroes para o template
     patterns = []
@@ -322,7 +343,14 @@ def load_example(filename):
         dest_path = UPLOAD_FOLDER / filename
         shutil.copy(str(filepath), str(dest_path))
         
-        return redirect(url_for('select_text', filename=filename))
+        # Extrair texto
+        text = extract_text_from_pdf(str(dest_path))
+        if text:
+            session['extracted_text'] = text
+            session['current_filename'] = filename
+            flash(_('Example loaded successfully!'), 'success')
+        
+        return redirect(url_for('train'))
     except Exception as e:
         flash(_('Error loading example: ') + str(e), 'error')
         return redirect(url_for('examples'))
