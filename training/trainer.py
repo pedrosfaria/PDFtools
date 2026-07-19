@@ -1,20 +1,24 @@
 """
 Motor de treino para ensinar o programa a reconhecer faturas.
 
-Este módulo fornece uma interface para treinar o programa
+Este modulo fornece uma interface para treinar o programa
 com faturas reais, permitindo que o utilizador selecione
-manualmente onde estão os dados.
+manualmente onde estao os dados.
 """
 
 import re
 import json
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 import logging
 
-from .patterns import PatternManager, Pattern, FieldConfig
-from ..utils import pdf_utils, text_utils
+# Adicionar o diretorio pai ao path para imports relativos
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from training.patterns import PatternManager, Pattern
+from pdf_extractor.utils import pdf_utils, text_utils
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +67,8 @@ class InvoiceTrainer:
     - Carregar faturas PDF
     - Selecionar texto manualmente
     - Associar texto a campos
-    - Guardar padrões aprendidos
-    - Usar padrões para extrair dados automaticamente
+    - Guardar padroes aprendidos
+    - Usar padroes para extrair dados automaticamente
     """
     
     def __init__(self, patterns_file: Optional[str] = None, training_data_dir: Optional[str] = None):
@@ -72,8 +76,8 @@ class InvoiceTrainer:
         Inicializar o treinador.
         
         Args:
-            patterns_file: Caminho para o ficheiro de padrões
-            training_data_dir: Diretório para guardar dados de treino
+            patterns_file: Caminho para o ficheiro de padroes
+            training_data_dir: Diretorio para guardar dados de treino
         """
         self.pattern_manager = PatternManager(patterns_file)
         self.training_data_dir = Path(training_data_dir) if training_data_dir else Path("training/training_data")
@@ -95,7 +99,7 @@ class InvoiceTrainer:
         """
         pdf_path = Path(pdf_path)
         if not pdf_path.exists():
-            raise FileNotFoundError(f"Ficheiro não encontrado: {pdf_path}")
+            raise FileNotFoundError(f"Ficheiro nao encontrado: {pdf_path}")
         
         text = pdf_utils.extract_text_from_pdf(str(pdf_path))
         self.current_text = text
@@ -108,30 +112,30 @@ class InvoiceTrainer:
     
     def _detect_provider(self, text: str) -> str:
         """Detetar fornecedor do texto."""
-        from ..pdf_extractor.parsers import PARSERS
+        from pdf_extractor.parsers import PARSERS
         
         for provider, parser in PARSERS.items():
             if parser.detect(text):
                 return provider
         
-        return "coopernico"  # Default para Coopérnico
+        return "coopernico"  # Default para Coopernico
     
-    def get_fields(self) -> List[FieldConfig]:
+    def get_fields(self) -> List:
         """Obter todos os campos configurados."""
         return self.pattern_manager.get_all_fields()
     
-    def get_required_fields(self) -> List[FieldConfig]:
-        """Obter campos obrigatórios."""
+    def get_required_fields(self) -> List:
+        """Obter campos obrigatorios."""
         return self.pattern_manager.get_required_fields()
     
     def add_annotation(self, field_name: str, start: int, end: int, text: str) -> bool:
         """
-        Adicionar uma anotação (seleção de texto para um campo).
+        Adicionar uma anotacao (selecao de texto para um campo).
         
         Args:
             field_name: Nome do campo
-            start: Índice de início
-            end: Índice de fim
+            start: Indice de inicio
+            end: Indice de fim
             text: Texto selecionado
             
         Returns:
@@ -144,7 +148,7 @@ class InvoiceTrainer:
         return True
     
     def remove_annotation(self, field_name: str, index: int) -> bool:
-        """Remover uma anotação."""
+        """Remover uma anotacao."""
         if field_name in self.current_annotations and 0 <= index < len(self.current_annotations[field_name]):
             del self.current_annotations[field_name][index]
             if not self.current_annotations[field_name]:
@@ -153,15 +157,15 @@ class InvoiceTrainer:
         return False
     
     def clear_annotations(self):
-        """Limpar todas as anotações."""
+        """Limpar todas as anotacoes."""
         self.current_annotations = {}
     
     def learn_from_annotations(self) -> Dict[str, Pattern]:
         """
-        Aprender padrões a partir das anotações atuais.
+        Aprender padroes a partir das anotacoes atuais.
         
         Returns:
-            Dicionário com os padrões criados {field_name: pattern}
+            Dicionario com os padroes criados {field_name: pattern}
         """
         learned_patterns = {}
         
@@ -172,7 +176,7 @@ class InvoiceTrainer:
                 )
                 learned_patterns[field_name] = pattern
         
-        # Guardar padrões
+        # Guardar padroes
         self.pattern_manager._save_patterns()
         
         return learned_patterns
@@ -243,14 +247,14 @@ class InvoiceTrainer:
     
     def extract_with_learned_patterns(self, text: str, provider: str = None) -> Dict[str, Any]:
         """
-        Extrair dados usando os padrões aprendidos.
+        Extrair dados usando os padroes aprendidos.
         
         Args:
             text: Texto a analisar
             provider: Fornecedor (opcional)
             
         Returns:
-            Dicionário com os dados extraídos
+            Dicionario com os dados extraidos
         """
         if provider is None:
             provider = self._detect_provider(text)
@@ -263,11 +267,11 @@ class InvoiceTrainer:
         
         Args:
             text: Texto da fatura
-            field_values: Dicionário com {field_name: value}
+            field_values: Dicionario com {field_name: value}
             provider: Fornecedor
             
         Returns:
-            Dicionário com os padrões criados
+            Dicionario com os padroes criados
         """
         self.current_text = text
         self.current_provider = provider
@@ -279,7 +283,7 @@ class InvoiceTrainer:
             if not value:
                 continue
             
-            # Encontrar a posição do valor no texto
+            # Encontrar a posicao do valor no texto
             start = text.find(value)
             if start != -1:
                 end = start + len(value)
@@ -290,17 +294,17 @@ class InvoiceTrainer:
                 )
                 learned_patterns[field_name] = pattern
         
-        # Guardar padrões
+        # Guardar padroes
         self.pattern_manager._save_patterns()
         
         return learned_patterns
     
     def get_text_with_highlights(self, field_name: str = None) -> str:
         """
-        Obter texto com destaque das anotações.
+        Obter texto com destaque das anotacoes.
         
         Args:
-            field_name: Campo específico a destacar (ou None para todos)
+            field_name: Campo especifico a destacar (ou None para todos)
             
         Returns:
             HTML com texto e destaques
@@ -321,16 +325,16 @@ class InvoiceTrainer:
                     continue
                 
                 for start, end, text in annotations:
-                    # Encontrar a posição na linha
+                    # Encontrar a posicao na linha
                     line_start = 0
                     while True:
                         pos = self.current_text.find(line, line_start)
                         if pos == -1:
                             break
                         
-                        # Verificar se a anotação está nesta linha
+                        # Verificar se a anotacao esta nesta linha
                         if start >= pos and end <= pos + len(line):
-                            # Posição relativa na linha
+                            # Posicao relativa na linha
                             rel_start = start - pos
                             rel_end = end - pos
                             
@@ -342,8 +346,13 @@ class InvoiceTrainer:
                             # Cor com base no campo
                             color = self._get_field_color(ann_field)
                             
-                            line = f"{before}<span class='highlight' style='background-color: {color}; padding: 2px 4px; border-radius: 3px;' 
-                                   data-field='{ann_field}' data-start='{start}' data-end='{end}'>{selected}</span>{after}"
+                            # Criar o span com destaque
+                            highlight_span = (f"<span class='highlight' style='background-color: {color}; "
+                                           f"padding: 2px 4px; border-radius: 3px;' "
+                                           f"data-field='{ann_field}' data-start='{start}' data-end='{end}'>"
+                                           f"{selected}</span>")
+                            
+                            line = f"{before}{highlight_span}{after}"
                         
                         line_start = pos + 1
             
@@ -366,14 +375,14 @@ class InvoiceTrainer:
     
     def get_field_suggestions(self, text: str, field_name: str) -> List[Dict]:
         """
-        Obter sugestões de onde pode estar um campo no texto.
+        Obter sugestoes de onde pode estar um campo no texto.
         
         Args:
             text: Texto a analisar
             field_name: Nome do campo
             
         Returns:
-            Lista de sugestões com posição e confiança
+            Lista de sugestoes com posicao e confianca
         """
         suggestions = []
         field = self.pattern_manager.get_field(field_name)
@@ -415,7 +424,7 @@ class InvoiceTrainer:
                                     "pattern": f"Entre '{pattern.context_before}' e '{pattern.context_after}'"
                                 })
             except Exception as e:
-                logger.debug(f"Erro a aplicar padrão: {e}")
+                logger.debug(f"Erro a aplicar padrao: {e}")
                 continue
         
         return suggestions
