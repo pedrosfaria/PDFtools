@@ -29,6 +29,7 @@ from werkzeug.utils import secure_filename
 from training.trainer import InvoiceTrainer
 from training.patterns import PatternManager
 from pdf_extractor import PDFExtractor
+from pdf_extractor.utils.pdf_utils import extract_text_from_pdf
 
 # Importar sistema de traducao com fallback
 try:
@@ -53,6 +54,7 @@ except Exception as e:
     SUPPORTED_LANGUAGES = {'pt': 'Portugues', 'en': 'English'}
 
 import json
+import shutil
 
 # Configuracao da aplicacao
 app = Flask(__name__)
@@ -156,7 +158,7 @@ def select_text(filename):
     
     try:
         # Extrair texto do PDF
-        text = extractor.extract_text_from_pdf(str(filepath))
+        text = extract_text_from_pdf(str(filepath))
         
         if not text:
             flash(_('No text could be extracted from the PDF'), 'error')
@@ -278,7 +280,6 @@ def load_example(filename):
     
     try:
         # Copiar ficheiro para uploads
-        import shutil
         dest_path = UPLOAD_FOLDER / filename
         shutil.copy(str(filepath), str(dest_path))
         
