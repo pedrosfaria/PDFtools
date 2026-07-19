@@ -81,10 +81,32 @@ pattern_manager = PatternManager()
 # Configurar idioma padrao
 set_language('pt')  # Portugues por omissao
 
+# Variavel global para guardar o ficheiro atual
+CURRENT_FILE_INFO = {
+    'filename': None,
+    'filepath': None,
+    'text': None
+}
+
 
 def allowed_file(filename):
     """Verificar se o ficheiro tem extensao permitida."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def get_current_text():
+    """Obter texto do ficheiro atual."""
+    if CURRENT_FILE_INFO['text']:
+        return CURRENT_FILE_INFO['text']
+    
+    if CURRENT_FILE_INFO['filepath'] and Path(CURRENT_FILE_INFO['filepath']).exists():
+        try:
+            CURRENT_FILE_INFO['text'] = extract_text_from_pdf(CURRENT_FILE_INFO['filepath'])
+            return CURRENT_FILE_INFO['text']
+        except:
+            pass
+    
+    return ''
 
 
 @app.route('/')
@@ -141,13 +163,18 @@ def upload_file():
                     flash(_('No text could be extracted from the PDF. The file may be a scanned image.'), 'error')
                     return redirect(url_for('upload_file'))
                 
-                # Guardar informacao na sessao
+                # Guardar informacao global (em vez de sessao)
+                CURRENT_FILE_INFO['filename'] = filename
+                CURRENT_FILE_INFO['filepath'] = str(filepath)
+                CURRENT_FILE_INFO['text'] = text
+                
+                # Guardar tambem na sessao para compatibilidade
                 session['current_file'] = filename
                 session['filepath'] = str(filepath)
                 session['extracted_text'] = text
                 session['current_filename'] = filename
                 
-                # Ir diretamente para treino com o texto
+                # Ir diretamente para treino
                 flash(_('File uploaded successfully! Text extracted.'), 'success')
                 return redirect(url_for('train'))
                 
@@ -163,60 +190,17 @@ def upload_file():
                          _=_)
 
 
-@app.route('/view_text/<filename>')
-def view_text(filename):
-    """Visualizar texto extraido do PDF."""
-    filepath = UPLOAD_FOLDER / filename
-    
-    if not filepath.exists():
-        flash(_('File not found'), 'error')
-        return redirect(url_for('upload_file'))
-    
-    # Obter texto da sessao
-    extracted_text = session.get('extracted_text', '')
-    
-    if not extracted_text:
-        # Se nao tiver na sessao, extrair novamente
-        try:
-            extracted_text = extract_text_from_pdf(str(filepath))
-            session['extracted_text'] = extracted_text
-        except Exception as e:
-            flash(_('Error reading file: ') + str(e), 'error')
-            return redirect(url_for('upload_file'))
-    
-    # Obter campos
-    fields = trainer.get_fields()
-    
-    return render_template('training/view_text.html',
-                         filename=filename,
-                         text=extracted_text,
-                         fields=fields,
-                         current_language=get_language(),
-                         supported_languages=SUPPORTED_LANGUAGES,
-                         _=_)
-
-
 @app.route('/train', methods=['GET', 'POST'])
 def train():
     """Pagina de treino com padroes guardados."""
     # Obter todos os campos com os seus padroes
     fields = pattern_manager.get_all_fields()
     
-    # Obter texto da sessao OU do ficheiro mais recente
-    extracted_text = session.get('extracted_text', '')
-    current_filename = session.get('current_filename', '')
+    # Obter texto (tentar global primeiro, depois sessao)
+    extracted_text = get_current_text()
+    current_filename = CURRENT_FILE_INFO.get('filename', '') or session.get('current_filename', '')
     
-    # Se nao houver texto na sessao, tentar obter do ficheiro mais recente
-    if not extracted_text and current_filename:
-        filepath = UPLOAD_FOLDER / current_filename
-        if filepath.exists():
-            try:
-                extracted_text = extract_text_from_pdf(str(filepath))
-                session['extracted_text'] = extracted_text
-            except:
-                pass
-    
-    # Se ainda nao houver texto, mostrar mensagem
+    # Se nao houver texto, mostrar mensagem
     if not extracted_text:
         flash(_('Please upload a PDF file first.'), 'info')
         return redirect(url_for('upload_file'))
@@ -387,6 +371,12 @@ def load_example(filename):
         # Extrair texto
         text = extract_text_from_pdf(str(dest_path))
         if text:
+            # Guardar global
+            CURRENT_FILE_INFO['filename'] = filename
+            CURRENT_FILE_INFO['filepath'] = str(dest_path)
+            CURRENT_FILE_INFO['text'] = text
+            
+            # Guardar na sessao tambem
             session['extracted_text'] = text
             session['current_filename'] = filename
             flash(_('Example loaded successfully!'), 'success')
@@ -466,6 +456,11 @@ def clear_all():
         global pattern_manager
         pattern_manager = PatternManager()
         
+        # Limpar ficheiro atual
+        CURRENT_FILE_INFO['filename'] = None
+        CURRENT_FILE_INFO['filepath'] = None
+        CURRENT_FILE_INFO['text'] = None
+        
         # Apagar ficheiros de exemplos
         examples_dir = Path('training/examples')
         if examples_dir.exists():
@@ -504,6 +499,12 @@ def clear_uploads():
         for f in OUTPUT_FOLDER.glob('*'):
             if f.is_file():
                 f.unlink()
+        
+        # Limpar ficheiro atual
+        CURRENT_FILE_INFO['filename'] = None
+        CURRENT_FILE_INFO['filepath'] = None
+        CURRENT_FILE_INFO['text'] = None
+        
         flash(_('Temporary files cleared successfully!'), 'success')
     except Exception as e:
         flash(_('Error clearing files: ') + str(e), 'error')
