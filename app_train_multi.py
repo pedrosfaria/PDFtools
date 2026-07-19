@@ -196,7 +196,7 @@ def view_text(filename):
                          _=_)
 
 
-@app.route('/train')
+@app.route('/train', methods=['GET', 'POST'])
 def train():
     """Pagina de treino com padroes guardados."""
     # Obter todos os campos com os seus padroes
@@ -223,6 +223,50 @@ def train():
                 'provider': pattern.provider
             })
     
+    # Handle POST actions from the form
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'add_annotation':
+            field_name = request.form.get('field_name')
+            text = request.form.get('text')
+            start = request.form.get('start')
+            end = request.form.get('end')
+            
+            if field_name and text:
+                try:
+                    # Criar padrao e guardar
+                    pattern = Pattern(
+                        field_name=field_name,
+                        pattern=text,
+                        pattern_type="contains",
+                        provider="coopernico"
+                    )
+                    pattern_manager.add_pattern(field_name, pattern)
+                    flash(_('Pattern saved successfully!'), 'success')
+                except Exception as e:
+                    flash(_('Error saving pattern: ') + str(e), 'error')
+            else:
+                flash(_('Field and text are required'), 'error')
+            
+            return redirect(url_for('train'))
+        
+        elif action == 'remove_annotation':
+            field_name = request.form.get('field_name')
+            index = request.form.get('index')
+            # Implementar remocao se necessario
+            flash(_('Annotation removed'), 'info')
+            return redirect(url_for('train'))
+        
+        elif action == 'test_extraction':
+            # Redirecionar para pagina de teste
+            return redirect(url_for('test_extraction'))
+        
+        elif action == 'clear_annotations':
+            # Limpar anotacoes
+            flash(_('All annotations cleared'), 'info')
+            return redirect(url_for('train'))
+    
     return render_template('training/train.html',
                          filename=current_filename,
                          provider="coopernico",
@@ -238,7 +282,7 @@ def train():
 
 @app.route('/save_pattern', methods=['POST'])
 def save_pattern():
-    """Guardar padrao de extracao."""
+    """Guardar padrao de extracao (rota alternativa)."""
     if request.method == 'POST':
         field = request.form.get('field')
         text = request.form.get('text')
