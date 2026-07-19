@@ -4,12 +4,13 @@ Configurações do sistema de extração de PDFs
 
 # Fornecedores de energia suportados
 SUPPORTED_PROVIDERS = [
-    "edp",      # EDP - Energias de Portugal
-    "galp",     # Galp Energia
-    "ibersol",  # Ibersol
-    "endesa",   # Endesa
-    "goldenergy", # Goldenergy
-    "luzboom",  # Luzboom
+    "edp",          # EDP - Energias de Portugal
+    "galp",         # Galp Energia
+    "ibersol",      # Ibersol
+    "coopernico",   # Coopérnico - Cooperativa de Energia
+    "endesa",       # Endesa
+    "goldenergy",   # Goldenergy
+    "luzboom",      # Luzboom
 ]
 
 # Campos padrão a extrair de uma fatura de eletricidade
