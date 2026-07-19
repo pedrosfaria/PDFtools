@@ -147,9 +147,9 @@ def upload_file():
                 session['extracted_text'] = text
                 session['current_filename'] = filename
                 
-                # Mostrar o texto na pagina de treino
+                # Ir diretamente para treino com o texto
                 flash(_('File uploaded successfully! Text extracted.'), 'success')
-                return redirect(url_for('view_text', filename=filename))
+                return redirect(url_for('train'))
                 
             except Exception as e:
                 flash(_('Error processing PDF: ') + str(e), 'error')
@@ -202,11 +202,21 @@ def train():
     # Obter todos os campos com os seus padroes
     fields = pattern_manager.get_all_fields()
     
-    # Obter texto da sessao
+    # Obter texto da sessao OU do ficheiro mais recente
     extracted_text = session.get('extracted_text', '')
     current_filename = session.get('current_filename', '')
     
-    # Se nao houver texto, mostrar mensagem e redirecionar
+    # Se nao houver texto na sessao, tentar obter do ficheiro mais recente
+    if not extracted_text and current_filename:
+        filepath = UPLOAD_FOLDER / current_filename
+        if filepath.exists():
+            try:
+                extracted_text = extract_text_from_pdf(str(filepath))
+                session['extracted_text'] = extracted_text
+            except:
+                pass
+    
+    # Se ainda nao houver texto, mostrar mensagem
     if not extracted_text:
         flash(_('Please upload a PDF file first.'), 'info')
         return redirect(url_for('upload_file'))
@@ -381,7 +391,7 @@ def load_example(filename):
             session['current_filename'] = filename
             flash(_('Example loaded successfully!'), 'success')
         
-        return redirect(url_for('view_text', filename=filename))
+        return redirect(url_for('train'))
     except Exception as e:
         flash(_('Error loading example: ') + str(e), 'error')
         return redirect(url_for('examples'))
