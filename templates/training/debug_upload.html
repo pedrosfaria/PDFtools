@@ -1,0 +1,78 @@
+{% extends "training/base_train.html" %}
+
+{% block title %}DEBUG - Upload PDF{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <i class="fas fa-bug"></i> DEBUG MODE - Upload PDF
+            </div>
+            <div class="card-body">
+                <p class="lead mb-4">
+                    <strong>Modo Debug:</strong> Carregue um ficheiro PDF para ver a extracao detalhada.
+                </p>
+
+                <form method="POST" action="{{ url_for('upload_file') }}" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label for="file" class="form-label">
+                            <i class="fas fa-file-pdf text-danger"></i> Selecione o ficheiro PDF
+                        </label>
+                        <input class="form-control form-control-lg" type="file" name="file" id="file" 
+                               accept=".pdf,application/pdf" required>
+                        <div class="form-text">
+                            Apenas ficheiros PDF. Tamanho maximo: 50MB.
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-dark btn-lg">
+                            <i class="fas fa-upload"></i> Carregar e Analisar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h6><i class="fas fa-info-circle text-primary"></i> Informacoes:</h6>
+                    <ul>
+                        <li><strong>Texto bruto:</strong> Veja todo o texto extraido do PDF</li>
+                        <li><strong>Dados estruturados:</strong> Veja os campos extraidos</li>
+                        <li><strong>Parsers:</strong> Compare resultados de todos os parsers disponiveis</li>
+                        <li><strong>Depuracao:</strong> Identifique problemas de extracao</li>
+                    </ul>
+                </div>
+
+                <div class="mt-4">
+                    <form method="POST" action="{{ url_for('clear_uploads') }}" class="d-inline">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash"></i> Limpar ficheiros temporarios
+                        </button>
+                    </form>
+                </div>
+
+                <div class="mt-4 text-center">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Voltar ao modo normal
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="row mt-3">
+        <div class="col-lg-8 mx-auto">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+{% endwith %}
+{% endblock %}
