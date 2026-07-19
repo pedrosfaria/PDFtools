@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Aplicação Web para TREINO do extrator de faturas.
+Aplicacao Web para TREINO do extrator de faturas.
 
-Esta aplicação permite:
+Esta aplicacao permite:
 - Carregar faturas PDF
 - Selecionar texto manualmente
 - Associar texto a campos
-- Guardar padrões aprendidos
-- Testar a extração com padrões aprendidos
+- Guardar padroes aprendidos
+- Testar a extracao com padroes aprendidos
 
 Uso:
     python app_train.py
 
-A interface estará disponível em: http://localhost:5001
+A interface estara disponivel em: http://localhost:5001
 """
 
 import os
 import sys
 from pathlib import Path
 
-# Adicionar o diretório ao path
+# Adicionar o diretorio ao path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, session, jsonify
@@ -29,11 +30,11 @@ from training.patterns import PatternManager
 from pdf_extractor import PDFExtractor
 import json
 
-# Configuração da aplicação
+# Configuracao da aplicacao
 app = Flask(__name__)
 app.secret_key = 'training_secret_key_2024'
 
-# Configurações
+# Configuracoes
 UPLOAD_FOLDER = Path('training/uploads')
 OUTPUT_FOLDER = Path('training/output')
 ALLOWED_EXTENSIONS = {'pdf', 'PDF'}
@@ -52,13 +53,13 @@ extractor = PDFExtractor()
 
 
 def allowed_file(filename):
-    """Verificar se o ficheiro tem extensão permitida."""
+    """Verificar se o ficheiro tem extensao permitida."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @app.route('/')
 def index():
-    """Página inicial do treino."""
+    """Pagina inicial do treino."""
     # Obter exemplos de treino
     examples = trainer.get_training_examples()
     
@@ -94,7 +95,7 @@ def upload_file():
                 session['current_text'] = text
                 session['current_provider'] = trainer.current_provider
                 
-                # Limpar anotações anteriores
+                # Limpar anotacoes anteriores
                 trainer.clear_annotations()
                 
                 flash(f'Ficheiro {filename} carregado com sucesso!', 'success')
@@ -103,7 +104,7 @@ def upload_file():
                 flash(f'Erro a carregar ficheiro: {e}', 'error')
                 return redirect(request.url)
         else:
-            flash('Tipo de ficheiro não permitido. Apenas PDF.', 'error')
+            flash('Tipo de ficheiro nao permitido. Apenas PDF.', 'error')
             return redirect(request.url)
     
     return render_template('training/upload.html')
@@ -111,18 +112,18 @@ def upload_file():
 
 @app.route('/train', methods=['GET', 'POST'])
 def train():
-    """Página de treino."""
+    """Pagina de treino."""
     if 'current_text' not in session:
         flash('Nenhum ficheiro carregado. Por favor carregue um ficheiro primeiro.', 'error')
         return redirect(url_for('upload_file'))
     
-    # Atualizar treinador com texto da sessão
+    # Atualizar treinador com texto da sessao
     trainer.current_text = session['current_text']
     trainer.current_filename = session.get('current_file', 'desconhecido')
     trainer.current_provider = session.get('current_provider', 'coopernico')
     
     if request.method == 'POST':
-        # Processar anotações
+        # Processar anotacoes
         action = request.form.get('action')
         
         if action == 'add_annotation':
@@ -134,7 +135,7 @@ def train():
             if field_name and start >= 0 and end > start:
                 trainer.add_annotation(field_name, start, end, text)
                 session['annotations'] = trainer.current_annotations
-                flash('Anotação adicionada!', 'success')
+                flash('Annotacao adicionada!', 'success')
         
         elif action == 'remove_annotation':
             field_name = request.form.get('field_name')
@@ -142,17 +143,17 @@ def train():
             
             if field_name and trainer.remove_annotation(field_name, index):
                 session['annotations'] = trainer.current_annotations
-                flash('Anotação removida!', 'success')
+                flash('Annotacao removida!', 'success')
         
         elif action == 'clear_annotations':
             trainer.clear_annotations()
             session.pop('annotations', None)
-            flash('Todas as anotações foram removidas!', 'success')
+            flash('Todas as anotacoes foram removidas!', 'success')
         
         elif action == 'learn':
             learned = trainer.learn_from_annotations()
             trainer.save_training_example()
-            flash(f'Padrões aprendidos e guardados! {len(learned)} campos treinados.', 'success')
+            flash(f'Padroes aprendidos e guardados! {len(learned)} campos treinados.', 'success')
             return redirect(url_for('train'))
         
         elif action == 'test_extraction':
@@ -162,7 +163,7 @@ def train():
             session['extraction_results'] = results
             return redirect(url_for('test_extraction'))
     
-    # Obter sugestões para campos não anotados
+    # Obter sugestoes para campos nao anotados
     fields = trainer.get_fields()
     annotated_fields = set(trainer.current_annotations.keys())
     
@@ -185,7 +186,7 @@ def train():
 
 @app.route('/test_extraction')
 def test_extraction():
-    """Testar extração com padrões aprendidos."""
+    """Testar extracao com padroes aprendidos."""
     if 'current_text' not in session:
         flash('Nenhum ficheiro carregado.', 'error')
         return redirect(url_for('upload_file'))
@@ -199,7 +200,7 @@ def test_extraction():
         trainer.current_text, trainer.current_provider
     )
     
-    # Guardar na sessão
+    # Guardar na sessao
     session['extraction_results'] = results
     
     return render_template('training/test_extraction.html',
@@ -209,7 +210,7 @@ def test_extraction():
 
 @app.route('/get_suggestions/<field_name>')
 def get_suggestions(field_name):
-    """API para obter sugestões para um campo."""
+    """API para obter sugestoes para um campo."""
     if 'current_text' not in session:
         return jsonify({"suggestions": []})
     
@@ -231,7 +232,7 @@ def get_suggestions(field_name):
 
 @app.route('/api/extract_text', methods=['POST'])
 def api_extract_text():
-    """API para extrair texto de uma posição."""
+    """API para extrair texto de uma posicao."""
     data = request.json
     start = data.get('start', 0)
     end = data.get('end', 0)
@@ -241,12 +242,12 @@ def api_extract_text():
         extracted = text[start:end].strip()
         return jsonify({"text": extracted, "start": start, "end": end})
     
-    return jsonify({"error": "Posição inválida"}), 400
+    return jsonify({"error": "Posicao invalida"}), 400
 
 
 @app.route('/api/annotate', methods=['POST'])
 def api_annotate():
-    """API para adicionar anotação."""
+    """API para adicionar anotacao."""
     data = request.json
     field_name = data.get('field_name')
     start = data.get('start', 0)
@@ -266,12 +267,12 @@ def api_annotate():
             }
         })
     
-    return jsonify({"success": False, "error": "Dados inválidos"}), 400
+    return jsonify({"success": False, "error": "Dados invalidos"}), 400
 
 
 @app.route('/api/learn', methods=['POST'])
 def api_learn():
-    """API para aprender padrões."""
+    """API para aprender padroes."""
     trainer.current_text = session.get('current_text', '')
     trainer.current_filename = session.get('current_file', 'desconhecido')
     trainer.current_provider = session.get('current_provider', 'coopernico')
@@ -325,7 +326,7 @@ def load_example(filename):
         flash(f'Exemplo {filename} carregado!', 'success')
         return redirect(url_for('train'))
     else:
-        flash('Exemplo não encontrado!', 'error')
+        flash('Exemplo nao encontrado!', 'error')
         return redirect(url_for('list_examples'))
 
 
@@ -338,26 +339,26 @@ def delete_example(filename):
         example_path.unlink()
         flash(f'Exemplo {filename} apagado!', 'success')
     else:
-        flash('Exemplo não encontrado!', 'error')
+        flash('Exemplo nao encontrado!', 'error')
     
     return redirect(url_for('list_examples'))
 
 
 @app.route('/export_patterns')
 def export_patterns():
-    """Exportar padrões aprendidos."""
+    """Exportar padroes aprendidos."""
     patterns_file = Path('training/patterns.json')
     
     if patterns_file.exists():
         return send_from_directory('training', 'patterns.json', as_attachment=True)
     else:
-        flash('Nenhum padrão para exportar!', 'error')
+        flash('Nenhum padrao para exportar!', 'error')
         return redirect(url_for('index'))
 
 
 @app.route('/import_patterns', methods=['POST'])
 def import_patterns():
-    """Importar padrões."""
+    """Importar padroes."""
     if 'file' not in request.files:
         flash('Nenhum ficheiro selecionado!', 'error')
         return redirect(url_for('index'))
@@ -373,14 +374,14 @@ def import_patterns():
         filepath = Path('training/patterns_backup.json')
         file.save(str(filepath))
         
-        # Carregar padrões
+        # Carregar padroes
         global trainer
         trainer = InvoiceTrainer(patterns_file=str(filepath))
         
-        flash('Padrões importados com sucesso!', 'success')
+        flash('Padroes importados com sucesso!', 'success')
         return redirect(url_for('index'))
     else:
-        flash('Ficheiro inválido!', 'error')
+        flash('Ficheiro invalido!', 'error')
         return redirect(url_for('index'))
 
 
@@ -393,7 +394,7 @@ def clear_all():
         for f in training_data_dir.glob('*.json'):
             f.unlink()
     
-    # Apagar padrões
+    # Apagar padroes
     patterns_file = Path('training/patterns.json')
     if patterns_file.exists():
         patterns_file.unlink()
@@ -408,11 +409,11 @@ def clear_all():
 
 if __name__ == '__main__':
     print("""
-    ╔══════════════════════════════════════════════════════════════════╗
-    ║   PDF Invoice Extractor - Training Mode                        ║
-    ║   Modo de treino para ensinar o programa a reconhecer faturas  ║
-    ║   A interface está disponível em: http://localhost:5001        ║
-    ╚══════════════════════════════════════════════════════════════════╝
+    +-----------------------------------------------------+
+    |  PDF Invoice Extractor - Training Mode             |
+    |  A interface estara disponivel em:                 |
+    |  http://localhost:5001                              |
+    +-----------------------------------------------------+
     """)
     
     app.run(host='0.0.0.0', port=5001, debug=True)
