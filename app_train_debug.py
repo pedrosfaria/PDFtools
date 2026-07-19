@@ -29,8 +29,6 @@ from werkzeug.utils import secure_filename
 from pdf_extractor import PDFExtractor
 from pdf_extractor.utils.pdf_utils import extract_text_from_pdf
 from pdf_extractor.parsers import PARSERS
-from training.trainer import InvoiceTrainer
-from training.patterns import PatternManager
 import traceback
 
 # Configuracao da aplicacao
@@ -52,10 +50,6 @@ app.config['UPLOAD_FOLDER'] = str(UPLOAD_FOLDER)
 app.config['OUTPUT_FOLDER'] = str(OUTPUT_FOLDER)
 app.config['DEBUG_FOLDER'] = str(DEBUG_FOLDER)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
-
-# Inicializar treinador e extrator
-trainer = InvoiceTrainer()
-pattern_manager = PatternManager()
 
 def allowed_file(filename):
     """Verifica se o ficheiro e permitido."""

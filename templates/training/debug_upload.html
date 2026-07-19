@@ -1,4 +1,4 @@
-{% extends "training/base_train.html" %}
+{% extends "training/debug_base.html" %}
 
 {% block title %}DEBUG - Upload PDF{% endblock %}
 
@@ -52,27 +52,12 @@
                 </div>
 
                 <div class="mt-4 text-center">
-                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Voltar ao modo normal
+                    <a href="/" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Voltar ao inicio
                     </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    <div class="row mt-3">
-        <div class="col-lg-8 mx-auto">
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-{% endwith %}
 {% endblock %}

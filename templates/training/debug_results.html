@@ -1,4 +1,4 @@
-{% extends "training/base_train.html" %}
+{% extends "training/debug_base.html" %}
 
 {% block title %}DEBUG - Resultados{% endblock %}
 
@@ -105,9 +105,9 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <span class="fw-bold">{{ parser_name }}</span>
                             {% if result.success %}
-                            <span class="success-badge">✓ Sucesso</span>
+                            <span class="success-badge">Sucesso</span>
                             {% else %}
-                            <span class="error-badge">✗ Erro</span>
+                            <span class="error-badge">Erro</span>
                             {% endif %}
                         </div>
                         <div class="card-body">
@@ -144,7 +144,7 @@
                     <a href="{{ url_for('upload_file') }}" class="btn btn-primary">
                         <i class="fas fa-upload"></i> Carregar Outro Ficheiro
                     </a>
-                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                    <a href="/" class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-left"></i> Voltar
                     </a>
                 </div>
