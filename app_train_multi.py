@@ -148,6 +148,7 @@ def upload_file():
                 session['current_filename'] = filename
                 
                 # Mostrar o texto na pagina de treino
+                flash(_('File uploaded successfully! Text extracted.'), 'success')
                 return redirect(url_for('view_text', filename=filename))
                 
             except Exception as e:
@@ -205,7 +206,7 @@ def train():
     extracted_text = session.get('extracted_text', '')
     current_filename = session.get('current_filename', '')
     
-    # Se nao houver texto, mostrar mensagem
+    # Se nao houver texto, mostrar mensagem e redirecionar
     if not extracted_text:
         flash(_('Please upload a PDF file first.'), 'info')
         return redirect(url_for('upload_file'))
