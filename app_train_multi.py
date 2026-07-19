@@ -168,6 +168,9 @@ def select_text(filename):
         session['extracted_text'] = text
         session['current_filename'] = filename
         
+        # Tentar detetar fornecedor
+        provider = "coopernico"  # Padrao
+        
         return render_template('training/select_text.html',
                              filename=filename,
                              text=text,
@@ -217,6 +220,10 @@ def train():
     # Obter todos os campos com os seus padroes
     fields = pattern_manager.get_all_fields()
     
+    # Obter texto da sessao
+    extracted_text = session.get('extracted_text', '')
+    current_filename = session.get('current_filename', '')
+    
     # Criar lista de padroes para o template
     patterns = []
     for field in fields:
@@ -229,9 +236,23 @@ def train():
                 'provider': pattern.provider
             })
     
+    # Gerar texto com highlights (simples para ja)
+    highlighted_text = extracted_text
+    
+    # Sugestoes vazias por agora
+    suggestions = {}
+    
+    # Anotacoes vazias por agora
+    annotations = {}
+    
     return render_template('training/train.html',
+                         filename=current_filename,
+                         provider="coopernico",
+                         highlighted_text=highlighted_text,
+                         suggestions=suggestions,
+                         fields=fields,
+                         annotations=annotations,
                          patterns=patterns,
-                         fields=trainer.get_fields(),
                          current_language=get_language(),
                          supported_languages=SUPPORTED_LANGUAGES,
                          _=_)
