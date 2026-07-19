@@ -235,7 +235,9 @@ class PatternManager:
             if match:
                 return match.group(1) if match.groups() else match.group(0)
         elif pattern.pattern_type == "contains":
+            # Procurar o padrao no texto
             if pattern.pattern in text:
+                # Devolver o padrao completo que foi encontrado
                 return pattern.pattern
         elif pattern.pattern_type == "starts_with":
             if text.startswith(pattern.pattern):
@@ -301,16 +303,22 @@ class PatternManager:
             if not provider_patterns:
                 provider_patterns = field.patterns
             
-            # Temporariamente usar apenas padrões do fornecedor
-            original_patterns = field.patterns
-            field.patterns = provider_patterns
+            # Ordenar padrões por comprimento (maiores primeiro) para matchar os mais específicos
+            provider_patterns = sorted(provider_patterns, key=lambda p: len(p.pattern), reverse=True)
             
-            value = self.extract_field(text, field_name)
-            if value is not None:
-                result[field_name] = value
-            
-            # Restaurar padrões
-            field.patterns = original_patterns
+            # Extrair usando apenas os padrões do fornecedor
+            for pattern in provider_patterns:
+                try:
+                    result_value = self._apply_pattern(text, pattern)
+                    if result_value is not None:
+                        # Processar segundo o tipo de dados do campo
+                        processed_value = self._process_value(result_value, field.data_type)
+                        if processed_value is not None:
+                            result[field_name] = processed_value
+                            break  # Parar no primeiro match
+                except Exception as e:
+                    logger.debug(f"Erro a aplicar padrão para {field_name}: {e}")
+                    continue
         
         return result
     
