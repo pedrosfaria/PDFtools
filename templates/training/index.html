@@ -1,0 +1,189 @@
+{% extends "training/base_train.html" %}
+
+{% block title %}Início - Training Mode{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <h2 class="mb-4"><i class="fas fa-graduation-cap text-primary"></i> Modo de Treino</h2>
+        
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h5><i class="fas fa-info-circle text-info"></i> Como funciona o modo de treino</h5>
+                <p>
+                    Este modo permite <strong>ensinar o programa</strong> a reconhecer os campos nas faturas da Coopérnico.
+                    Siga os passos abaixo para treinar o sistema:
+                </p>
+                
+                <div class="row mt-4">
+                    <div class="col-md-4">
+                        <div class="card h-100 border-primary">
+                            <div class="card-body">
+                                <div class="text-center mb-3">
+                                    <i class="fas fa-upload fa-2x text-primary"></i>
+                                </div>
+                                <h6 class="card-title text-center">1. Carregar Fatura</h6>
+                                <p class="card-text text-center">
+                                    Carregue um ficheiro PDF de uma fatura da Coopérnico
+                                </p>
+                                <div class="text-center">
+                                    <a href="{{ url_for('upload_file') }}" class="btn btn-primary">
+                                        <i class="fas fa-file-upload"></i> Carregar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card h-100 border-success">
+                            <div class="card-body">
+                                <div class="text-center mb-3">
+                                    <i class="fas fa-mouse-pointer fa-2x text-success"></i>
+                                </div>
+                                <h6 class="card-title text-center">2. Selecionar Dados</h6>
+                                <p class="card-text text-center">
+                                    Selecione o texto correspondente a cada campo (ex: número da fatura, consumo, etc.)
+                                </p>
+                                <div class="text-center">
+                                    <a href="{{ url_for('train') }}" class="btn btn-success">
+                                        <i class="fas fa-edit"></i> Treinar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card h-100 border-info">
+                            <div class="card-body">
+                                <div class="text-center mb-3">
+                                    <i class="fas fa-brain fa-2x text-info"></i>
+                                </div>
+                                <h6 class="card-title text-center">3. Aprender e Testar</h6>
+                                <p class="card-text text-center">
+                                    O programa aprende os padrões e pode extrair dados automaticamente
+                                </p>
+                                <div class="text-center">
+                                    <a href="{{ url_for('test_extraction') }}" class="btn btn-info">
+                                        <i class="fas fa-vial"></i> Testar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <i class="fas fa-file-alt"></i> Exemplos de Treino Guardados
+            </div>
+            <div class="card-body">
+                {% if examples %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Ficheiro</th>
+                                <th>Fornecedor</th>
+                                <th>Data</th>
+                                <th>Campos Anotados</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for example in examples %}
+                            <tr>
+                                <td>{{ example.filename }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ example.provider }}</span>
+                                </td>
+                                <td>{{ example.created_at[:10] }}</td>
+                                <td>{{ example.field_annotations|length }}</td>
+                                <td>
+                                    <a href="{{ url_for('load_example', filename=example.filename) }}" 
+                                       class="btn btn-sm btn-outline-primary" title="Carregar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{{ url_for('delete_example', filename=example.filename) }}" 
+                                       class="btn btn-sm btn-outline-danger" title="Apagar">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center">Nenhum exemplo de treino guardado ainda.</p>
+                {% endif %}
+                
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('list_examples') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list"></i> Ver Todos os Exemplos
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <i class="fas fa-cogs"></i> Ferramentas
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="d-grid">
+                            <a href="{{ url_for('export_patterns') }}" class="btn btn-outline-primary">
+                                <i class="fas fa-download"></i> Exportar Padrões
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <form method="POST" action="{{ url_for('import_patterns') }}" enctype="multipart/form-data">
+                            <div class="input-group">
+                                <input type="file" name="file" class="form-control" accept=".json" required>
+                                <button type="submit" class="btn btn-outline-secondary">
+                                    <i class="fas fa-upload"></i> Importar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="d-grid">
+                            <a href="{{ url_for('clear_all') }}" class="btn btn-outline-danger" 
+                               onclick="return confirm('Tem a certeza que quer apagar TODOS os dados de treino?')">
+                                <i class="fas fa-trash"></i> Apagar Tudo
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <i class="fas fa-question-circle"></i> Ajuda
+            </div>
+            <div class="card-body">
+                <h6>Dicas para treinar o programa:</h6>
+                <ol>
+                    <li><strong>Comece com faturas claras:</strong> Escolha faturas com formato simples e legível.</li>
+                    <li><strong>Selecione com precisão:</strong> Tente selecionar apenas o texto relevante para cada campo.</li>
+                    <li><strong>Treine com múltiplos exemplos:</strong> Quanto mais faturas treinar, melhor o programa fica.</li>
+                    <li><strong>Verifique os resultados:</strong> Depois de treinar, teste a extração para ver se está correto.</li>
+                    <li><strong>Corrija erros:</strong> Se o programa extrair dados errados, adicione mais exemplos de treino.</li>
+                </ol>
+                
+                <p class="mt-3">
+                    <strong>Nota:</strong> Os padrões aprendidos são guardados no ficheiro <code>training/patterns.json</code>.
+                    Pode exportar e importar este ficheiro para partilhar com outros utilizadores.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
