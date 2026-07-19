@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from pdf_extractor import PDFExtractor
-from pdf_extractor.extractor import extract_text_from_pdf
+from pdf_extractor.utils.pdf_utils import extract_text_from_pdf
 
 def test_pdf_extraction(pdf_path):
     """Testa a extracao de texto de um PDF."""

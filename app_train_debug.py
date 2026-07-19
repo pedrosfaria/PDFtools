@@ -27,8 +27,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, session, jsonify
 from werkzeug.utils import secure_filename
 from pdf_extractor import PDFExtractor
-from pdf_extractor.extractor import extract_text_from_pdf
-from pdf_extractor.parsers import get_available_parsers, get_parser
+from pdf_extractor.utils.pdf_utils import extract_text_from_pdf
+from pdf_extractor.parsers import PARSERS
 from training.trainer import InvoiceTrainer
 from training.patterns import PatternManager
 import traceback
@@ -74,6 +74,17 @@ def get_human_readable_text(text, max_length=5000):
         return text[:max_length] + f"\n\n... (texto truncado, total: {len(text)} caracteres)"
     
     return text
+
+def get_available_parsers():
+    """Retorna a lista de parsers disponiveis."""
+    return list(PARSERS.keys())
+
+def get_parser(parser_name):
+    """Retorna uma instancia do parser."""
+    parser_class = PARSERS.get(parser_name)
+    if parser_class:
+        return parser_class()
+    return None
 
 @app.route('/')
 def index():
@@ -134,7 +145,9 @@ def debug_extraction(filename):
             try:
                 parser = get_parser(parser_name)
                 if parser:
-                    result = parser.parse(str(filepath))
+                    # Extrair texto primeiro para o parser
+                    text = extract_text_from_pdf(str(filepath))
+                    result = parser.parse(text)
                     parsers_results[parser_name] = {
                         'success': True,
                         'result': result
