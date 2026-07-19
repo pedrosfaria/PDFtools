@@ -307,6 +307,9 @@ def save_pattern():
 @app.route('/test_extraction', methods=['GET', 'POST'])
 def test_extraction():
     """Testar extracao com padroes aprendidos."""
+    # Obter campos
+    fields = pattern_manager.get_all_fields()
+    
     if request.method == 'POST':
         if 'file' not in request.files:
             flash(_('No file selected'), 'error')
@@ -323,19 +326,34 @@ def test_extraction():
                 # Extrair com padroes aprendidos
                 result = extractor.extract_from_pdf(str(filepath))
                 
+                # Converter result para results (dicionario com valores)
+                # O template espera 'results' como dict de campo: valor
+                results = result if isinstance(result, dict) else {}
+                
                 return render_template('training/test_extraction.html',
-                                     result=result,
+                                     results=results,
+                                     fields=fields,
                                      filename=filename,
                                      current_language=get_language(),
                                      supported_languages=SUPPORTED_LANGUAGES,
                                      _=_)
             except Exception as e:
                 flash(_('Error extracting data: ') + str(e), 'error')
+                # Devolver template com results vazio
+                return render_template('training/test_extraction.html',
+                                     results={},
+                                     fields=fields,
+                                     filename=None,
+                                     current_language=get_language(),
+                                     supported_languages=SUPPORTED_LANGUAGES,
+                                     _=_)
         else:
             flash(_('Invalid file type'), 'error')
     
+    # Para GET, mostrar pagina com resultados vazios
     return render_template('training/test_extraction.html',
-                         result=None,
+                         results={},
+                         fields=fields,
                          filename=None,
                          current_language=get_language(),
                          supported_languages=SUPPORTED_LANGUAGES,
