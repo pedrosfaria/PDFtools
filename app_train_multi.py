@@ -5,7 +5,7 @@ Aplicacao Web para TREINO do extrator de faturas com suporte multi-lingue.
 
 Esta aplicacao permite:
 - Carregar faturas PDF
-- Selecionar texto manualmente
+- Ver texto extraido
 - Associar texto a campos
 - Guardar padroes aprendidos
 - Testar a extracao com padroes aprendidos
@@ -147,9 +147,8 @@ def upload_file():
                 session['extracted_text'] = text
                 session['current_filename'] = filename
                 
-                # Redirecionar para treino com o texto
-                flash(_('File uploaded successfully! Text extracted.'), 'success')
-                return redirect(url_for('train'))
+                # Mostrar o texto na pagina de treino
+                return redirect(url_for('view_text', filename=filename))
                 
             except Exception as e:
                 flash(_('Error processing PDF: ') + str(e), 'error')
@@ -163,41 +162,77 @@ def upload_file():
                          _=_)
 
 
-@app.route('/select_text/<filename>')
-def select_text(filename):
-    """Selecionar texto do PDF para associar a campos."""
+@app.route('/view_text/<filename>')
+def view_text(filename):
+    """Visualizar texto extraido do PDF."""
     filepath = UPLOAD_FOLDER / filename
     
     if not filepath.exists():
         flash(_('File not found'), 'error')
-        return redirect(url_for('index'))
-    
-    try:
-        # Extrair texto do PDF
-        text = extract_text_from_pdf(str(filepath))
-        
-        if not text:
-            flash(_('No text could be extracted from the PDF'), 'error')
-            return redirect(url_for('upload_file'))
-        
-        # Guardar texto na sessao
-        session['extracted_text'] = text
-        session['current_filename'] = filename
-        
-        # Tentar detetar fornecedor
-        provider = "coopernico"  # Padrao
-        
-        return render_template('training/select_text.html',
-                             filename=filename,
-                             text=text,
-                             fields=trainer.get_fields(),
-                             current_language=get_language(),
-                             supported_languages=SUPPORTED_LANGUAGES,
-                             _=_)
-        
-    except Exception as e:
-        flash(_('Error processing PDF: ') + str(e), 'error')
         return redirect(url_for('upload_file'))
+    
+    # Obter texto da sessao
+    extracted_text = session.get('extracted_text', '')
+    
+    if not extracted_text:
+        # Se nao tiver na sessao, extrair novamente
+        try:
+            extracted_text = extract_text_from_pdf(str(filepath))
+            session['extracted_text'] = extracted_text
+        except Exception as e:
+            flash(_('Error reading file: ') + str(e), 'error')
+            return redirect(url_for('upload_file'))
+    
+    # Obter campos
+    fields = trainer.get_fields()
+    
+    return render_template('training/view_text.html',
+                         filename=filename,
+                         text=extracted_text,
+                         fields=fields,
+                         current_language=get_language(),
+                         supported_languages=SUPPORTED_LANGUAGES,
+                         _=_)
+
+
+@app.route('/train')
+def train():
+    """Pagina de treino com padroes guardados."""
+    # Obter todos os campos com os seus padroes
+    fields = pattern_manager.get_all_fields()
+    
+    # Obter texto da sessao
+    extracted_text = session.get('extracted_text', '')
+    current_filename = session.get('current_filename', '')
+    
+    # Se nao houver texto, mostrar mensagem
+    if not extracted_text:
+        flash(_('Please upload a PDF file first.'), 'info')
+        return redirect(url_for('upload_file'))
+    
+    # Criar lista de padroes para o template
+    patterns = []
+    for field in fields:
+        for pattern in field.patterns:
+            patterns.append({
+                'field_name': field.field_name,
+                'display_name': field.display_name,
+                'pattern': pattern.pattern,
+                'pattern_type': pattern.pattern_type,
+                'provider': pattern.provider
+            })
+    
+    return render_template('training/train.html',
+                         filename=current_filename,
+                         provider="coopernico",
+                         highlighted_text=extracted_text,
+                         suggestions={},  # Vazio por agora
+                         fields=fields,
+                         annotations={},  # Vazio por agora
+                         patterns=patterns,
+                         current_language=get_language(),
+                         supported_languages=SUPPORTED_LANGUAGES,
+                         _=_)
 
 
 @app.route('/save_pattern', methods=['POST'])
@@ -228,55 +263,6 @@ def save_pattern():
             flash(_('Error saving pattern: ') + str(e), 'error')
     
     return redirect(url_for('index'))
-
-
-@app.route('/train')
-def train():
-    """Pagina de treino com padroes guardados."""
-    # Obter todos os campos com os seus padroes
-    fields = pattern_manager.get_all_fields()
-    
-    # Obter texto da sessao
-    extracted_text = session.get('extracted_text', '')
-    current_filename = session.get('current_filename', '')
-    
-    # Se nao houver texto, redirecionar para upload
-    if not extracted_text:
-        flash(_('Please upload a PDF file first.'), 'info')
-        return redirect(url_for('upload_file'))
-    
-    # Criar lista de padroes para o template
-    patterns = []
-    for field in fields:
-        for pattern in field.patterns:
-            patterns.append({
-                'field_name': field.field_name,
-                'display_name': field.display_name,
-                'pattern': pattern.pattern,
-                'pattern_type': pattern.pattern_type,
-                'provider': pattern.provider
-            })
-    
-    # Gerar texto com highlights (simples para ja)
-    highlighted_text = extracted_text
-    
-    # Sugestoes vazias por agora
-    suggestions = {}
-    
-    # Anotacoes vazias por agora
-    annotations = {}
-    
-    return render_template('training/train.html',
-                         filename=current_filename,
-                         provider="coopernico",
-                         highlighted_text=highlighted_text,
-                         suggestions=suggestions,
-                         fields=fields,
-                         annotations=annotations,
-                         patterns=patterns,
-                         current_language=get_language(),
-                         supported_languages=SUPPORTED_LANGUAGES,
-                         _=_)
 
 
 @app.route('/test_extraction', methods=['GET', 'POST'])
@@ -350,7 +336,7 @@ def load_example(filename):
             session['current_filename'] = filename
             flash(_('Example loaded successfully!'), 'success')
         
-        return redirect(url_for('train'))
+        return redirect(url_for('view_text', filename=filename))
     except Exception as e:
         flash(_('Error loading example: ') + str(e), 'error')
         return redirect(url_for('examples'))
