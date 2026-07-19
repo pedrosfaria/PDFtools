@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="{% if current_language %}{{ current_language }}{% else %}pt-PT{% endif %}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Training - PDF Invoice Extractor{% endblock %}</title>
+    <title>{% block title %}{{ _('Training') }} - PDF Invoice Extractor{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -50,36 +50,61 @@
             word-wrap: break-word;
         }
         
-        .selection-toolbar {
-            position: absolute;
-            background: white;
-            border: 1px solid #ccc;
+        .selection-highlight {
+            background-color: #ffeb3b;
+            opacity: 0.5;
+        }
+        
+        #textContainer {
+            min-height: 300px;
+            border: 2px dashed #ccc;
+        }
+        
+        #textContainer:hover {
+            border-color: #888;
+        }
+        
+        .field-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .field-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            background-color: #f8f9fa;
             border-radius: 5px;
-            padding: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1000;
-            display: none;
-        }
-        
-        .field-selector {
-            max-width: 200px;
-        }
-        
-        .suggestion-item {
             cursor: pointer;
-            padding: 5px 10px;
-            margin: 2px 0;
-            border-radius: 3px;
             transition: all 0.2s;
         }
         
-        .suggestion-item:hover {
-            background-color: #f0f0f0;
+        .field-item:hover {
+            background-color: #e9ecef;
         }
         
-        .suggestion-item.active {
-            background-color: #e0e0ff;
-            border: 1px solid #8080ff;
+        .field-item.active {
+            background-color: #d4edda;
+            border-left: 3px solid #28a745;
+        }
+        
+        .suggestions-panel {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .suggestion-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            margin: 2px;
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 10px;
+            font-size: 0.85em;
+            cursor: pointer;
+        }
+        
+        .suggestion-badge:hover {
+            background-color: #d0ebff;
         }
         
         .annotations-panel {
@@ -125,6 +150,26 @@
             padding: 0.25rem 0.5rem;
             font-size: 0.875rem;
         }
+        
+        /* Language selector styles */
+        .language-selector {
+            margin-left: 15px;
+        }
+        
+        .language-selector .dropdown-toggle {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.9rem;
+        }
+        
+        .language-selector .dropdown-item {
+            font-size: 0.9rem;
+        }
+        
+        .language-flag {
+            width: 20px;
+            height: 15px;
+            margin-right: 8px;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -132,7 +177,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-graduation-cap"></i> Training Mode
+                <i class="fas fa-graduation-cap"></i> {{ _('Training Mode') }}
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -140,21 +185,50 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}"><i class="fas fa-home"></i> Início</a>
+                        <a class="nav-link" href="{{ url_for('index') }}"><i class="fas fa-home"></i> {{ _('Home') }}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('upload_file') }}"><i class="fas fa-upload"></i> Carregar</a>
+                        <a class="nav-link" href="{{ url_for('upload_file') }}"><i class="fas fa-upload"></i> {{ _('Upload') }}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('train') }}"><i class="fas fa-edit"></i> Treinar</a>
+                        <a class="nav-link" href="{{ url_for('train') }}"><i class="fas fa-edit"></i> {{ _('Train') }}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('test_extraction') }}"><i class="fas fa-vial"></i> Testar</a>
+                        <a class="nav-link" href="{{ url_for('test_extraction') }}"><i class="fas fa-vial"></i> {{ _('Test') }}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('list_examples') }}"><i class="fas fa-list"></i> Exemplos</a>
+                        <a class="nav-link" href="{{ url_for('list_examples') }}"><i class="fas fa-list"></i> {{ _('Examples') }}</a>
                     </li>
                 </ul>
+                
+                <!-- Seletor de idioma -->
+                {% if supported_languages %}
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item dropdown language-selector">
+                        <a class="nav-link dropdown-toggle" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            {% if current_language == 'pt' %}<i class="fas fa-flag"></i> Português
+                            {% elif current_language == 'en' %}<i class="fas fa-flag"></i> English
+                            {% elif current_language == 'es' %}<i class="fas fa-flag"></i> Español
+                            {% elif current_language == 'fr' %}<i class="fas fa-flag"></i> Français
+                            {% else %}<i class="fas fa-globe"></i> {{ _('Language') }}{% endif %}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown">
+                            {% for lang_code, lang_name in supported_languages.items() %}
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('set_language_route', lang=lang_code) }}">
+                                    {% if lang_code == 'pt' %}🇵🇹
+                                    {% elif lang_code == 'en' %}🇬🇧
+                                    {% elif lang_code == 'es' %}🇪🇸
+                                    {% elif lang_code == 'fr' %}🇫🇷
+                                    {% else %}🌍{% endif %}
+                                    {{ lang_name }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                </ul>
+                {% endif %}
             </div>
         </div>
     </nav>
@@ -177,7 +251,7 @@
     <footer class="bg-light py-3 mt-4">
         <div class="container text-center">
             <p class="mb-0 text-muted">
-                <i class="fas fa-graduation-cap"></i> Modo de Treino - PDF Invoice Extractor
+                <i class="fas fa-graduation-cap"></i> {{ _('Training Mode') }} - PDF Invoice Extractor
             </p>
         </div>
     </footer>

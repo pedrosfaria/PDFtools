@@ -109,9 +109,9 @@ def upload_file():
             filepath = UPLOAD_FOLDER / filename
             file.save(str(filepath))
             
-            # Carregar texto
+            # Carregar texto - usar o caminho absoluto
             try:
-                text, filename = trainer.load_pdf(str(filepath))
+                text, loaded_filename = trainer.load_pdf(str(filepath.absolute()))
                 session['current_file'] = filename
                 session['current_text'] = text
                 session['current_provider'] = trainer.current_provider
