@@ -74,6 +74,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
 # Inicializar treinador e extrator
 trainer = InvoiceTrainer()
 extractor = PDFExtractor()
+pattern_manager = PatternManager()
 
 # Configurar idioma padrao
 set_language('pt')  # Portugues por omissao
@@ -264,6 +265,104 @@ def examples():
                          current_language=get_language(),
                          supported_languages=SUPPORTED_LANGUAGES,
                          _=_)
+
+
+@app.route('/load_example/<filename>')
+def load_example(filename):
+    """Carregar um exemplo de fatura para treino."""
+    filepath = Path('training/examples') / filename
+    
+    if not filepath.exists():
+        flash(_('Example file not found'), 'error')
+        return redirect(url_for('examples'))
+    
+    try:
+        # Copiar ficheiro para uploads
+        import shutil
+        dest_path = UPLOAD_FOLDER / filename
+        shutil.copy(str(filepath), str(dest_path))
+        
+        return redirect(url_for('select_text', filename=filename))
+    except Exception as e:
+        flash(_('Error loading example: ') + str(e), 'error')
+        return redirect(url_for('examples'))
+
+
+@app.route('/delete_example/<filename>')
+def delete_example(filename):
+    """Apagar um exemplo de fatura."""
+    filepath = Path('training/examples') / filename
+    
+    if filepath.exists():
+        try:
+            filepath.unlink()
+            flash(_('Example deleted successfully!'), 'success')
+        except Exception as e:
+            flash(_('Error deleting example: ') + str(e), 'error')
+    
+    return redirect(url_for('examples'))
+
+
+@app.route('/export_patterns')
+def export_patterns():
+    """Exportar padroes para ficheiro JSON."""
+    try:
+        patterns = pattern_manager.get_all_patterns()
+        return jsonify(patterns)
+    except Exception as e:
+        flash(_('Error exporting patterns: ') + str(e), 'error')
+        return redirect(url_for('train'))
+
+
+@app.route('/import_patterns', methods=['POST'])
+def import_patterns():
+    """Importar padroes de ficheiro JSON."""
+    if 'file' not in request.files:
+        flash(_('No file selected'), 'error')
+        return redirect(url_for('train'))
+    
+    file = request.files['file']
+    
+    if file and file.filename.endswith('.json'):
+        try:
+            patterns = json.loads(file.read())
+            pattern_manager.import_patterns(patterns)
+            flash(_('Patterns imported successfully!'), 'success')
+        except Exception as e:
+            flash(_('Error importing patterns: ') + str(e), 'error')
+    else:
+        flash(_('Invalid file type. Only JSON files are allowed.'), 'error')
+    
+    return redirect(url_for('train'))
+
+
+@app.route('/clear_all', methods=['POST'])
+def clear_all():
+    """Apagar todos os dados de treino."""
+    try:
+        # Apagar padroes
+        pattern_manager.clear_all_patterns()
+        
+        # Apagar ficheiros de exemplos
+        examples_dir = Path('training/examples')
+        if examples_dir.exists():
+            for f in examples_dir.glob('*'):
+                if f.is_file():
+                    f.unlink()
+        
+        # Apagar ficheiros temporarios
+        for f in UPLOAD_FOLDER.glob('*'):
+            if f.is_file():
+                f.unlink()
+        for f in OUTPUT_FOLDER.glob('*'):
+            if f.is_file():
+                f.unlink()
+        
+        flash(_('All training data cleared successfully!'), 'success')
+    except Exception as e:
+        flash(_('Error clearing all data: ') + str(e), 'error')
+    
+    return redirect(url_for('index'))
 
 
 @app.route('/download/<path:filename>')
