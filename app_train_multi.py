@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, session, jsonify
 from werkzeug.utils import secure_filename
 from training.trainer import InvoiceTrainer
-from training.patterns import PatternManager
+from training.patterns import PatternManager, Pattern
 from pdf_extractor import PDFExtractor
 from pdf_extractor.utils.pdf_utils import extract_text_from_pdf
 
@@ -194,9 +194,14 @@ def save_pattern():
             return redirect(url_for('select_text', filename=filename))
         
         try:
-            # Guardar padrao
-            trainer.add_pattern(field, text)
-            pattern_manager.save_patterns()
+            # Criar padrao e guardar
+            pattern = Pattern(
+                field_name=field,
+                pattern=text,
+                pattern_type="contains",
+                provider="coopernico"
+            )
+            pattern_manager.add_pattern(field, pattern)
             
             flash(_('Pattern saved successfully!'), 'success')
             return redirect(url_for('train'))
@@ -209,7 +214,20 @@ def save_pattern():
 @app.route('/train')
 def train():
     """Pagina de treino com padroes guardados."""
-    patterns = pattern_manager.get_all_patterns()
+    # Obter todos os campos com os seus padroes
+    fields = pattern_manager.get_all_fields()
+    
+    # Criar lista de padroes para o template
+    patterns = []
+    for field in fields:
+        for pattern in field.patterns:
+            patterns.append({
+                'field_name': field.field_name,
+                'display_name': field.display_name,
+                'pattern': pattern.pattern,
+                'pattern_type': pattern.pattern_type,
+                'provider': pattern.provider
+            })
     
     return render_template('training/train.html',
                          patterns=patterns,
@@ -308,8 +326,13 @@ def delete_example(filename):
 def export_patterns():
     """Exportar padroes para ficheiro JSON."""
     try:
-        patterns = pattern_manager.get_all_patterns()
-        return jsonify(patterns)
+        fields = pattern_manager.get_all_fields()
+        patterns_data = []
+        for field in fields:
+            for pattern in field.patterns:
+                patterns_data.append(pattern.to_dict())
+        
+        return jsonify(patterns_data)
     except Exception as e:
         flash(_('Error exporting patterns: ') + str(e), 'error')
         return redirect(url_for('train'))
@@ -326,8 +349,11 @@ def import_patterns():
     
     if file and file.filename.endswith('.json'):
         try:
-            patterns = json.loads(file.read())
-            pattern_manager.import_patterns(patterns)
+            patterns_data = json.loads(file.read())
+            for pattern_data in patterns_data:
+                pattern = Pattern.from_dict(pattern_data)
+                pattern_manager.add_pattern(pattern.field_name, pattern)
+            
             flash(_('Patterns imported successfully!'), 'success')
         except Exception as e:
             flash(_('Error importing patterns: ') + str(e), 'error')
@@ -341,8 +367,14 @@ def import_patterns():
 def clear_all():
     """Apagar todos os dados de treino."""
     try:
-        # Apagar padroes
-        pattern_manager.clear_all_patterns()
+        # Apagar ficheiro de padroes
+        patterns_file = Path('training/patterns.json')
+        if patterns_file.exists():
+            patterns_file.unlink()
+        
+        # Recriar PatternManager para apagar da memoria
+        global pattern_manager
+        pattern_manager = PatternManager()
         
         # Apagar ficheiros de exemplos
         examples_dir = Path('training/examples')
