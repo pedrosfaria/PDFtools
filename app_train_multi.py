@@ -29,7 +29,29 @@ from werkzeug.utils import secure_filename
 from training.trainer import InvoiceTrainer
 from training.patterns import PatternManager
 from pdf_extractor import PDFExtractor
-from translations import set_language, get_language, gettext as _, SUPPORTED_LANGUAGES
+
+# Importar sistema de traducao com fallback
+try:
+    from translations import set_language, get_language, gettext as _, SUPPORTED_LANGUAGES
+    TRANSLATION_AVAILABLE = True
+except Exception as e:
+    print(f"Aviso: Sistema de traducao nao disponivel: {e}")
+    print("A usar traducao simples (Portugues)")
+    TRANSLATION_AVAILABLE = False
+    
+    # Funcao de fallback simples
+    def _(text):
+        """Funcao de traducao simples - devolve o texto original."""
+        return text
+    
+    def get_language():
+        return 'pt'
+    
+    def set_language(lang):
+        pass
+    
+    SUPPORTED_LANGUAGES = {'pt': 'Portugues', 'en': 'English'}
+
 import json
 
 # Configuracao da aplicacao
@@ -104,352 +126,177 @@ def upload_file():
             return redirect(request.url)
         
         if file and allowed_file(file.filename):
-            # Guardar ficheiro
             filename = secure_filename(file.filename)
             filepath = UPLOAD_FOLDER / filename
             file.save(str(filepath))
             
-            # Carregar texto - usar o caminho absoluto
-            try:
-                text, loaded_filename = trainer.load_pdf(str(filepath.absolute()))
-                session['current_file'] = filename
-                session['current_text'] = text
-                session['current_provider'] = trainer.current_provider
-                
-                # Limpar anotacoes anteriores
-                trainer.clear_annotations()
-                
-                flash(_('File uploaded successfully!'), 'success')
-                return redirect(url_for('train'))
-            except Exception as e:
-                flash(f"{_('Error loading file')}: {e}", 'error')
-                return redirect(request.url)
+            # Guardar informacao na sessao
+            session['current_file'] = filename
+            session['filepath'] = str(filepath)
+            
+            return redirect(url_for('select_text', filename=filename))
         else:
-            flash(_('Invalid file type. Only PDF allowed.'), 'error')
-            return redirect(request.url)
+            flash(_('Invalid file type. Only PDF files are allowed.'), 'error')
     
     return render_template('training/upload.html',
                          current_language=get_language(),
                          supported_languages=SUPPORTED_LANGUAGES,
-                         _=_)  # Passar funcao de traducao
+                         _=_)
 
 
-@app.route('/train', methods=['GET', 'POST'])
-def train():
-    """Pagina de treino."""
-    if 'current_text' not in session:
-        flash(_('No file loaded. Please upload a file first.'), 'error')
+@app.route('/select_text/<filename>')
+def select_text(filename):
+    """Selecionar texto do PDF para associar a campos."""
+    filepath = UPLOAD_FOLDER / filename
+    
+    if not filepath.exists():
+        flash(_('File not found'), 'error')
+        return redirect(url_for('index'))
+    
+    try:
+        # Extrair texto do PDF
+        text = extractor.extract_text_from_pdf(str(filepath))
+        
+        if not text:
+            flash(_('No text could be extracted from the PDF'), 'error')
+            return redirect(url_for('upload_file'))
+        
+        # Guardar texto na sessao
+        session['extracted_text'] = text
+        session['current_filename'] = filename
+        
+        return render_template('training/select_text.html',
+                             filename=filename,
+                             text=text,
+                             fields=trainer.get_fields(),
+                             current_language=get_language(),
+                             supported_languages=SUPPORTED_LANGUAGES,
+                             _=_)
+        
+    except Exception as e:
+        flash(_('Error processing PDF: ') + str(e), 'error')
         return redirect(url_for('upload_file'))
-    
-    # Atualizar treinador com texto da sessao
-    trainer.current_text = session['current_text']
-    trainer.current_filename = session.get('current_file', 'desconhecido')
-    trainer.current_provider = session.get('current_provider', 'coopernico')
-    
+
+
+@app.route('/save_pattern', methods=['POST'])
+def save_pattern():
+    """Guardar padrao de extracao."""
     if request.method == 'POST':
-        # Processar anotacoes
-        action = request.form.get('action')
+        field = request.form.get('field')
+        text = request.form.get('text')
+        filename = session.get('current_filename')
         
-        if action == 'add_annotation':
-            field_name = request.form.get('field_name')
-            start = int(request.form.get('start'))
-            end = int(request.form.get('end'))
-            text = request.form.get('text')
+        if not field or not text:
+            flash(_('Field and text are required'), 'error')
+            return redirect(url_for('select_text', filename=filename))
+        
+        try:
+            # Guardar padrao
+            trainer.add_pattern(field, text)
+            pattern_manager.save_patterns()
             
-            if field_name and start >= 0 and end > start:
-                trainer.add_annotation(field_name, start, end, text)
-                session['annotations'] = trainer.current_annotations
-                flash(_('Annotation added!'), 'success')
-        
-        elif action == 'remove_annotation':
-            field_name = request.form.get('field_name')
-            index = int(request.form.get('index'))
-            
-            if field_name and trainer.remove_annotation(field_name, index):
-                session['annotations'] = trainer.current_annotations
-                flash(_('Annotation removed!'), 'success')
-        
-        elif action == 'clear_annotations':
-            trainer.clear_annotations()
-            session.pop('annotations', None)
-            flash(_('All annotations cleared!'), 'success')
-        
-        elif action == 'learn':
-            learned = trainer.learn_from_annotations()
-            trainer.save_training_example()
-            flash(_('Patterns learned and saved!'), 'success')
+            flash(_('Pattern saved successfully!'), 'success')
             return redirect(url_for('train'))
-        
-        elif action == 'test_extraction':
-            results = trainer.extract_with_learned_patterns(
-                trainer.current_text, trainer.current_provider
-            )
-            session['extraction_results'] = results
-            return redirect(url_for('test_extraction'))
+        except Exception as e:
+            flash(_('Error saving pattern: ') + str(e), 'error')
     
-    # Obter sugestoes para campos nao anotados
-    fields = trainer.get_fields()
-    annotated_fields = set(trainer.current_annotations.keys())
-    
-    suggestions = {}
-    for field in fields:
-        if field.field_name not in annotated_fields:
-            suggestions[field.field_name] = trainer.get_field_suggestions(
-                trainer.current_text, field.field_name
-            )
+    return redirect(url_for('index'))
+
+
+@app.route('/train')
+def train():
+    """Pagina de treino com padroes guardados."""
+    patterns = pattern_manager.get_all_patterns()
     
     return render_template('training/train.html',
-                         text=trainer.current_text,
-                         filename=trainer.current_filename,
-                         provider=trainer.current_provider,
-                         fields=fields,
-                         annotations=trainer.current_annotations,
-                         suggestions=suggestions,
-                         highlighted_text=trainer.get_text_with_highlights(),
-                         current_language=get_language(),
-                         supported_languages=SUPPORTED_LANGUAGES,
-                         _=_)  # Passar funcao de traducao
-
-
-@app.route('/test_extraction')
-def test_extraction():
-    """Testar extracao com padroes aprendidos."""
-    if 'current_text' not in session:
-        flash(_('No file loaded.'), 'error')
-        return redirect(url_for('upload_file'))
-    
-    # Atualizar treinador
-    trainer.current_text = session['current_text']
-    trainer.current_provider = session.get('current_provider', 'coopernico')
-    
-    # Extrair dados
-    results = trainer.extract_with_learned_patterns(
-        trainer.current_text, trainer.current_provider
-    )
-    
-    # Guardar na sessao
-    session['extraction_results'] = results
-    
-    return render_template('training/test_extraction.html',
-                         results=results,
+                         patterns=patterns,
                          fields=trainer.get_fields(),
                          current_language=get_language(),
                          supported_languages=SUPPORTED_LANGUAGES,
-                         _=_)  # Passar funcao de traducao
+                         _=_)
 
 
-@app.route('/get_suggestions/<field_name>')
-def get_suggestions(field_name):
-    """API para obter sugestoes para um campo."""
-    if 'current_text' not in session:
-        return jsonify({"suggestions": []})
-    
-    trainer.current_text = session['current_text']
-    suggestions = trainer.get_field_suggestions(trainer.current_text, field_name)
-    
-    return jsonify({
-        "suggestions": [
-            {
-                "start": s["start"],
-                "end": s["end"],
-                "text": s["text"],
-                "confidence": s["confidence"]
-            }
-            for s in suggestions
-        ]
-    })
-
-
-@app.route('/api/extract_text', methods=['POST'])
-def api_extract_text():
-    """API para extrair texto de uma posicao."""
-    data = request.json
-    start = data.get('start', 0)
-    end = data.get('end', 0)
-    text = session.get('current_text', '')
-    
-    if start >= 0 and end > start and end <= len(text):
-        extracted = text[start:end].strip()
-        return jsonify({"text": extracted, "start": start, "end": end})
-    
-    return jsonify({"error": _("Invalid position")}), 400
-
-
-@app.route('/api/annotate', methods=['POST'])
-def api_annotate():
-    """API para adicionar anotacao."""
-    data = request.json
-    field_name = data.get('field_name')
-    start = data.get('start', 0)
-    end = data.get('end', 0)
-    text = data.get('text', '')
-    
-    if field_name and start >= 0 and end > start:
-        trainer.current_text = session.get('current_text', '')
-        trainer.add_annotation(field_name, start, end, text)
-        session['annotations'] = trainer.current_annotations
+@app.route('/test_extraction', methods=['GET', 'POST'])
+def test_extraction():
+    """Testar extracao com padroes aprendidos."""
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash(_('No file selected'), 'error')
+            return redirect(request.url)
         
-        return jsonify({
-            "success": True,
-            "annotations": {
-                field: [{"start": s, "end": e, "text": t} for s, e, t in anns]
-                for field, anns in trainer.current_annotations.items()
-            }
-        })
+        file = request.files['file']
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = UPLOAD_FOLDER / filename
+            file.save(str(filepath))
+            
+            try:
+                # Extrair com padroes aprendidos
+                result = extractor.extract_from_pdf(str(filepath))
+                
+                return render_template('training/test_extraction.html',
+                                     result=result,
+                                     filename=filename,
+                                     current_language=get_language(),
+                                     supported_languages=SUPPORTED_LANGUAGES,
+                                     _=_)
+            except Exception as e:
+                flash(_('Error extracting data: ') + str(e), 'error')
+        else:
+            flash(_('Invalid file type'), 'error')
     
-    return jsonify({"success": False, "error": _("Invalid data")}), 400
+    return render_template('training/test_extraction.html',
+                         result=None,
+                         filename=None,
+                         current_language=get_language(),
+                         supported_languages=SUPPORTED_LANGUAGES,
+                         _=_)
 
 
-@app.route('/api/learn', methods=['POST'])
-def api_learn():
-    """API para aprender padroes."""
-    trainer.current_text = session.get('current_text', '')
-    trainer.current_filename = session.get('current_file', 'desconhecido')
-    trainer.current_provider = session.get('current_provider', 'coopernico')
-    
-    learned = trainer.learn_from_annotations()
-    trainer.save_training_example()
-    
-    return jsonify({
-        "success": True,
-        "learned_patterns": {field: p.to_dict() for field, p in learned.items()}
-    })
-
-
-@app.route('/api/extract', methods=['POST'])
-def api_extract():
-    """API para extrair dados."""
-    trainer.current_text = session.get('current_text', '')
-    trainer.current_provider = session.get('current_provider', 'coopernico')
-    
-    results = trainer.extract_with_learned_patterns(
-        trainer.current_text, trainer.current_provider
-    )
-    
-    session['extraction_results'] = results
-    
-    return jsonify({
-        "success": True,
-        "results": results
-    })
-
-
-@app.route('/list_examples')
-def list_examples():
-    """Listar todos os exemplos de treino."""
+@app.route('/examples')
+def examples():
+    """Pagina com exemplos de faturas."""
     examples = trainer.get_training_examples()
     
-    return render_template('training/examples.html', 
+    return render_template('training/examples.html',
                          examples=examples,
                          current_language=get_language(),
                          supported_languages=SUPPORTED_LANGUAGES,
-                         _=_)  # Passar funcao de traducao
+                         _=_)
 
 
-@app.route('/load_example/<filename>')
-def load_example(filename):
-    """Carregar um exemplo de treino."""
-    example = trainer.load_training_example(filename)
-    
-    if example:
-        session['current_text'] = example.text
-        session['current_file'] = example.filename
-        session['current_provider'] = example.provider
-        session['annotations'] = example.field_annotations
-        
-        flash(_('Example loaded!'), 'success')
-        return redirect(url_for('train'))
-    else:
-        flash(_('Example not found!'), 'error')
-        return redirect(url_for('list_examples'))
+@app.route('/download/<path:filename>')
+def download_file(filename):
+    """Descarregar ficheiro."""
+    return send_from_directory(str(UPLOAD_FOLDER), filename, as_attachment=True)
 
 
-@app.route('/delete_example/<filename>')
-def delete_example(filename):
-    """Apagar um exemplo de treino."""
-    example_path = Path('training/training_data') / f"{filename}.json"
+@app.route('/clear', methods=['POST'])
+def clear_uploads():
+    """Limpar ficheiros carregados."""
+    try:
+        for f in UPLOAD_FOLDER.glob('*'):
+            if f.is_file():
+                f.unlink()
+        for f in OUTPUT_FOLDER.glob('*'):
+            if f.is_file():
+                f.unlink()
+        flash(_('Temporary files cleared successfully!'), 'success')
+    except Exception as e:
+        flash(_('Error clearing files: ') + str(e), 'error')
     
-    if example_path.exists():
-        example_path.unlink()
-        flash(_('Example deleted!'), 'success')
-    else:
-        flash(_('Example not found!'), 'error')
-    
-    return redirect(url_for('list_examples'))
-
-
-@app.route('/export_patterns')
-def export_patterns():
-    """Exportar padroes aprendidos."""
-    patterns_file = Path('training/patterns.json')
-    
-    if patterns_file.exists():
-        return send_from_directory('training', 'patterns.json', as_attachment=True)
-    else:
-        flash(_('No patterns to export!'), 'error')
-        return redirect(url_for('index'))
-
-
-@app.route('/import_patterns', methods=['POST'])
-def import_patterns():
-    """Importar padroes."""
-    if 'file' not in request.files:
-        flash(_('No file selected!'), 'error')
-        return redirect(url_for('index'))
-    
-    file = request.files['file']
-    
-    if file.filename == '':
-        flash(_('No file selected!'), 'error')
-        return redirect(url_for('index'))
-    
-    if file and file.filename.endswith('.json'):
-        # Guardar ficheiro
-        filepath = Path('training/patterns_backup.json')
-        file.save(str(filepath))
-        
-        # Carregar padroes
-        global trainer
-        trainer = InvoiceTrainer(patterns_file=str(filepath))
-        
-        flash(_('Patterns imported successfully!'), 'success')
-        return redirect(url_for('index'))
-    else:
-        flash(_('Invalid file!'), 'error')
-        return redirect(url_for('index'))
-
-
-@app.route('/clear_all')
-def clear_all():
-    """Limpar todos os dados de treino."""
-    # Apagar ficheiros de treino
-    training_data_dir = Path('training/training_data')
-    if training_data_dir.exists():
-        for f in training_data_dir.glob('*.json'):
-            f.unlink()
-    
-    # Apagar padroes
-    patterns_file = Path('training/patterns.json')
-    if patterns_file.exists():
-        patterns_file.unlink()
-    
-    # Reiniciar treinador
-    global trainer
-    trainer = InvoiceTrainer()
-    
-    flash(_('All training data deleted!'), 'success')
     return redirect(url_for('index'))
 
 
 if __name__ == '__main__':
-    print("""
-    +-----------------------------------------------------+
-    |  PDF Invoice Extractor - Training Mode (Multi-Lang)  |
-    |  A interface estara disponivel em:                 |
-    |  http://localhost:5001                              |
-    |                                                     |
-    |  Idiomas suportados: pt, en, es, fr                 |
-    +-----------------------------------------------------+
-    """)
+    print("="*60)
+    print("TRAINING APP - Extrator de Faturas (Multi-lingue)")
+    print("="*60)
+    print(f"Upload folder: {UPLOAD_FOLDER}")
+    print(f"Output folder: {OUTPUT_FOLDER}")
+    print("\nA aplicacao estara disponivel em: http://localhost:5001")
+    print("Pressione Ctrl+C para parar o servidor")
+    print("="*60)
     
     app.run(host='0.0.0.0', port=5001, debug=True)
