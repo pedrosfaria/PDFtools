@@ -4,14 +4,13 @@ OCR utilities for image text extraction
 
 import pytesseract
 from PIL import Image
-import cv2
-import numpy as np
 from typing import Optional
 
 
 def preprocess_image(image: Image.Image) -> Image.Image:
     """
     Preprocess image for better OCR results.
+    Simple version without OpenCV dependency.
     
     Args:
         image: PIL Image to preprocess
@@ -20,17 +19,7 @@ def preprocess_image(image: Image.Image) -> Image.Image:
         Preprocessed PIL Image
     """
     # Convert to grayscale
-    img_array = np.array(image)
-    gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY) if len(img_array.shape) == 3 else img_array
-    
-    # Apply thresholding
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    
-    # Remove noise
-    kernel = np.ones((1, 1), np.uint8)
-    processed = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-    
-    return Image.fromarray(processed)
+    return image.convert('L')
 
 
 def perform_ocr(image: Image.Image, language: str = "eng") -> Optional[str]:
