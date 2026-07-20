@@ -1,382 +1,178 @@
 """
-Motor principal de extração de dados de faturas de eletricidade
+Main PDF Extractor class
 """
 
-from typing import Dict, List, Optional, Union
-from pathlib import Path
-import logging
 import json
-import csv
-import pandas as pd
+import os
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 
-from .config import SUPPORTED_PROVIDERS, STANDARD_FIELDS, EXPORT_FORMATS, DEFAULT_EXPORT_FORMAT, DEFAULT_OUTPUT_DIR
-from .utils import pdf_utils
-from .parsers import PARSERS, BaseInvoiceParser
+from .config import Config
+from .utils import extract_text_from_pdf, perform_ocr_on_pdf, clean_text, normalize_text
 
-logger = logging.getLogger(__name__)
+
+@dataclass
+class ExtractionResult:
+    """Result of PDF extraction"""
+    raw_text: str
+    extracted_fields: Dict[str, str]
+    confidence: Dict[str, float]
+    errors: List[str]
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "raw_text": self.raw_text,
+            "extracted_fields": self.extracted_fields,
+            "confidence": self.confidence,
+            "errors": self.errors
+        }
 
 
 class PDFExtractor:
     """
-    Motor principal para extração de dados de faturas de eletricidade em PDF.
+    Main class for extracting data from PDF invoices.
     
-    Esta classe coordena todo o processo:
-    1. Leitura do PDF
-    2. Deteção do fornecedor
-    3. Parsing com o parser adequado
-    4. Validação dos dados
-    5. Exportação para o formato desejado
+    This class handles:
+    - Text extraction from PDFs (with or without OCR)
+    - Field extraction using patterns
+    - Basic validation
     """
     
-    def __init__(self, use_ocr: bool = False, output_dir: str = None):
+    def __init__(self, config: Optional[Config] = None):
         """
-        Inicializar o extrator.
+        Initialize the PDF extractor.
         
         Args:
-            use_ocr: Se True, usa OCR para extrair texto de imagens
-            output_dir: Diretório de saída (padrão: data/output)
+            config: Configuration object (uses defaults if None)
         """
-        self.use_ocr = use_ocr
-        self.output_dir = Path(output_dir) if output_dir else Path(DEFAULT_OUTPUT_DIR)
-        self.parsers = {}
-        self.pattern_manager = None
-        
-        # Inicializar parsers
-        self._init_parsers()
-        
-        # Tentar carregar PatternManager
-        self._init_pattern_manager()
-        
-    def _init_parsers(self):
-        """Inicializar todos os parsers disponíveis."""
-        for provider, parser_class in PARSERS.items():
-            self.parsers[provider] = parser_class()
-        
-
-    def _init_pattern_manager(self):
-        """Inicializar PatternManager para usar padroes aprendidos."""
-        try:
-            from training.patterns import PatternManager
-            self.pattern_manager = PatternManager()
-            logger.info("PatternManager carregado com sucesso")
-        except Exception as e:
-            logger.warning(f"PatternManager nao disponivel: {e}")
-            self.pattern_manager = None
-    def extract_from_pdf(self, pdf_path: str, use_ocr: bool = None) -> Dict:
-        """
-        Extrair dados de um ficheiro PDF.
-        
-        Args:
-            pdf_path: Caminho para o ficheiro PDF
-            use_ocr: Usar OCR (sobrepõe a configuração global)
-            
-        Returns:
-            Dicionário com os dados extraídos
-        """
-        pdf_path = Path(pdf_path)
-        
-        if not pdf_path.exists():
-            raise FileNotFoundError(f"Ficheiro não encontrado: {pdf_path}")
-        
-        # Extrair texto do PDF
-        ocr = use_ocr if use_ocr is not None else self.use_ocr
-        text = pdf_utils.extract_text_from_pdf(str(pdf_path), use_ocr=ocr)
-        
-        if not text or not text.strip():
-            raise ValueError(f"Não foi possível extrair texto do PDF: {pdf_path}")
-        
-        # Detetar fornecedor
-        provider = self._detect_provider(text)
-        
-        if not provider:
-            logger.warning(f"Não foi possível detetar o fornecedor para: {pdf_path}")
-            # Tentar com todos os parsers
-            for parser_name, parser in self.parsers.items():
-                try:
-                    data = parser.parse(text)
-                    if data:
-                        return data
-                except Exception as e:
-                    logger.debug(f"Parser {parser_name} falhou: {e}")
-                    continue
-            
-            raise ValueError(f"Não foi possível parsear a fatura: {pdf_path}")
-        
-        # Parsear com o parser adequado
-        parser = self.parsers.get(provider)
-        if not parser:
-            raise ValueError(f"Parser não disponível para fornecedor: {provider}")
-        
-        data = parser.parse(text)
-        
-        # Adicionar metadados
-        data["_source_file"] = str(pdf_path)
-        data["_provider"] = provider
-        
-        return data
+        self.config = config or Config.load()
+        self.patterns = self._load_patterns()
     
-    def extract_from_text(self, text: str) -> Dict:
-        """
-        Extrair dados de texto diretamente.
-        
-        Args:
-            text: Texto da fatura
-            
-        Returns:
-            Dicionário com os dados extraídos
-        """
-        if not text or not text.strip():
-            raise ValueError("Texto vazio")
-        
-        # Detetar fornecedor
-        provider = self._detect_provider(text)
-        
-        if not provider:
-            # Tentar com todos os parsers
-            for parser_name, parser in self.parsers.items():
-                try:
-                    data = parser.parse(text)
-                    if data:
-                        return data
-                except Exception as e:
-                    logger.debug(f"Parser {parser_name} falhou: {e}")
-                    continue
-            
-            raise ValueError("Não foi possível detetar o fornecedor")
-        
-        # Parsear com o parser adequado
-        parser = self.parsers.get(provider)
-        if not parser:
-            raise ValueError(f"Parser não disponível para fornecedor: {provider}")
-        
-        return parser.parse(text)
+    def _load_patterns(self) -> Dict[str, List[str]]:
+        """Load extraction patterns from file"""
+        patterns = {}
+        if os.path.exists(self.config.PATTERN_FILE):
+            try:
+                with open(self.config.PATTERN_FILE, 'r', encoding='utf-8') as f:
+                    patterns = json.load(f)
+            except Exception as e:
+                print(f"Error loading patterns: {e}")
+        return patterns
     
-    def _detect_provider(self, text: str) -> Optional[str]:
+    def _extract_text(self, pdf_path: str) -> Optional[str]:
         """
-        Detetar o fornecedor do texto.
+        Extract text from PDF, trying direct extraction first, then OCR.
         
         Args:
-            text: Texto a analisar
+            pdf_path: Path to PDF file
             
         Returns:
-            Nome do fornecedor ou None
+            Extracted text or None
         """
-        for provider, parser in self.parsers.items():
-            if parser.detect(text):
-                return provider
+        # Try direct text extraction first
+        text = extract_text_from_pdf(pdf_path)
+        if text:
+            return text
+        
+        # Fall back to OCR if enabled
+        if self.config.OCR_ENABLED:
+            text = perform_ocr_on_pdf(pdf_path, self.config.OCR_LANGUAGE)
+            if text:
+                return text
         
         return None
     
-    def extract_multiple(self, pdf_paths: List[str], use_ocr: bool = None) -> List[Dict]:
+    def _extract_field(self, text: str, field_name: str) -> Optional[str]:
         """
-        Extrair dados de múltiplos PDFs.
+        Extract a specific field using patterns.
         
         Args:
-            pdf_paths: Lista de caminhos para ficheiros PDF
-            use_ocr: Usar OCR
+            text: Text to search
+            field_name: Name of the field to extract
             
         Returns:
-            Lista de dicionários com os dados extraídos
+            Extracted value or None
         """
-        results = []
+        if field_name not in self.patterns:
+            return None
         
-        for pdf_path in pdf_paths:
-            try:
-                data = self.extract_from_pdf(pdf_path, use_ocr=use_ocr)
-                results.append(data)
-                logger.info(f"Processado: {pdf_path}")
-            except Exception as e:
-                logger.error(f"Erro a processar {pdf_path}: {e}")
-                results.append({
-                    "_source_file": str(pdf_path),
-                    "_error": str(e)
-                })
+        normalized_text = normalize_text(text)
         
-        return results
+        for pattern_info in self.patterns[field_name]:
+            pattern = pattern_info.get("pattern", "")
+            pattern_type = pattern_info.get("type", "regex")
+            
+            if pattern_type == "regex":
+                import re
+                match = re.search(pattern, normalized_text)
+                if match:
+                    return match.group(1) if match.groups() else match.group(0)
+            
+            elif pattern_type == "contains":
+                if pattern.lower() in normalized_text:
+                    # Return the part after the pattern
+                    start = normalized_text.find(pattern.lower())
+                    if start != -1:
+                        remaining = normalized_text[start + len(pattern):]
+                        # Get next line or reasonable chunk
+                        lines = remaining.split('\n')
+                        if lines:
+                            return lines[0].strip()
+        
+        return None
     
-    def export_to_csv(self, data: Union[Dict, List[Dict]], output_path: str = None) -> str:
+    def extract(self, pdf_path: str) -> ExtractionResult:
         """
-        Exportar dados para CSV.
+        Extract data from a PDF invoice.
         
         Args:
-            data: Dados a exportar (dicionário ou lista de dicionários)
-            output_path: Caminho de saída (opcional)
+            pdf_path: Path to the PDF file
             
         Returns:
-            Caminho do ficheiro criado
+            ExtractionResult with all extracted data
         """
-        if isinstance(data, dict):
-            data = [data]
+        errors = []
+        extracted_fields = {}
+        confidence = {}
         
-        if not output_path:
-            output_path = self.output_dir / "invoices.csv"
-        else:
-            output_path = Path(output_path)
+        # Extract raw text
+        raw_text = self._extract_text(pdf_path)
+        if not raw_text:
+            errors.append("Failed to extract text from PDF")
+            return ExtractionResult(
+                raw_text="",
+                extracted_fields={},
+                confidence={},
+                errors=errors
+            )
         
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_text = clean_text(raw_text)
         
-        # Obter todos os campos
-        all_fields = set()
-        for item in data:
-            all_fields.update(item.keys())
+        # Extract fields using patterns
+        for field_name in self.patterns:
+            value = self._extract_field(raw_text, field_name)
+            if value:
+                extracted_fields[field_name] = value
+                confidence[field_name] = 0.9  # High confidence for pattern matches
+            else:
+                confidence[field_name] = 0.1  # Low confidence for no match
         
-        # Ordenar campos (campos padrão primeiro)
-        sorted_fields = [f for f in STANDARD_FIELDS if f in all_fields]
-        sorted_fields.extend([f for f in all_fields if f not in STANDARD_FIELDS and not f.startswith("_")])
-        sorted_fields.extend([f for f in all_fields if f.startswith("_")])
-        
-        with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=sorted_fields, extrasaction='ignore')
-            writer.writeheader()
-            writer.writerows(data)
-        
-        logger.info(f"Dados exportados para: {output_path}")
-        return str(output_path)
+        return ExtractionResult(
+            raw_text=raw_text,
+            extracted_fields=extracted_fields,
+            confidence=confidence,
+            errors=errors
+        )
     
-    def export_to_json(self, data: Union[Dict, List[Dict]], output_path: str = None) -> str:
+    def extract_all(self, pdf_path: str) -> Dict[str, Any]:
         """
-        Exportar dados para JSON.
+        Convenience method to extract and return dictionary.
         
         Args:
-            data: Dados a exportar
-            output_path: Caminho de saída (opcional)
+            pdf_path: Path to PDF file
             
         Returns:
-            Caminho do ficheiro criado
+            Dictionary with extraction results
         """
-        if isinstance(data, dict):
-            data = [data]
-        
-        if not output_path:
-            output_path = self.output_dir / "invoices.json"
-        else:
-            output_path = Path(output_path)
-        
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_path, 'w', encoding='utf-8') as jsonfile:
-            json.dump(data, jsonfile, indent=2, ensure_ascii=False, default=str)
-        
-        logger.info(f"Dados exportados para: {output_path}")
-        return str(output_path)
-    
-    def export_to_excel(self, data: Union[Dict, List[Dict]], output_path: str = None) -> str:
-        """
-        Exportar dados para Excel.
-        
-        Args:
-            data: Dados a exportar
-            output_path: Caminho de saída (opcional)
-            
-        Returns:
-            Caminho do ficheiro criado
-        """
-        if isinstance(data, dict):
-            data = [data]
-        
-        if not output_path:
-            output_path = self.output_dir / "invoices.xlsx"
-        else:
-            output_path = Path(output_path)
-        
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Criar DataFrame
-        df = pd.DataFrame(data)
-        
-        # Reordenar colunas (campos padrão primeiro)
-        all_columns = list(df.columns)
-        sorted_columns = [c for c in STANDARD_FIELDS if c in all_columns]
-        sorted_columns.extend([c for c in all_columns if c not in STANDARD_FIELDS and not c.startswith("_")])
-        sorted_columns.extend([c for c in all_columns if c.startswith("_")])
-        
-        df = df[sorted_columns]
-        
-        # Guardar para Excel
-        df.to_excel(output_path, index=False, engine='openpyxl')
-        
-        logger.info(f"Dados exportados para: {output_path}")
-        return str(output_path)
-    
-    def export(self, data: Union[Dict, List[Dict]], format: str = None, output_path: str = None) -> str:
-        """
-        Exportar dados no formato especificado.
-        
-        Args:
-            data: Dados a exportar
-            format: Formato (csv, json, excel)
-            output_path: Caminho de saída (opcional)
-            
-        Returns:
-            Caminho do ficheiro criado
-        """
-        if format is None:
-            format = DEFAULT_EXPORT_FORMAT
-        
-        format = format.lower()
-        
-        if format not in EXPORT_FORMATS:
-            raise ValueError(f"Formato não suportado: {format}. Opções: {EXPORT_FORMATS}")
-        
-        if format == "csv":
-            return self.export_to_csv(data, output_path)
-        elif format == "json":
-            return self.export_to_json(data, output_path)
-        elif format == "excel":
-            return self.export_to_excel(data, output_path)
-        
-        raise ValueError(f"Formato desconhecido: {format}")
-    
-    def process_directory(self, input_dir: str, output_format: str = None, use_ocr: bool = None) -> List[str]:
-        """
-        Processar todos os PDFs num diretório.
-        
-        Args:
-            input_dir: Diretório com os PDFs
-            output_format: Formato de saída
-            use_ocr: Usar OCR
-            
-        Returns:
-            Lista de caminhos dos ficheiros de saída criados
-        """
-        input_dir = Path(input_dir)
-        
-        if not input_dir.exists():
-            raise FileNotFoundError(f"Diretório não encontrado: {input_dir}")
-        
-        # Encontrar todos os PDFs
-        pdf_files = list(input_dir.glob("*.pdf")) + list(input_dir.glob("*.PDF"))
-        
-        if not pdf_files:
-            logger.warning(f"Não foram encontrados ficheiros PDF em: {input_dir}")
-            return []
-        
-        # Extrair dados de todos os PDFs
-        all_data = self.extract_multiple([str(f) for f in pdf_files], use_ocr=use_ocr)
-        
-        # Exportar dados
-        if output_format:
-            output_path = self.export(all_data, format=output_format)
-            return [output_path]
-        else:
-            # Exportar em todos os formatos
-            results = []
-            for fmt in EXPORT_FORMATS:
-                output_path = self.export(all_data, format=fmt)
-                results.append(output_path)
-            return results
-    
-    def get_supported_providers(self) -> List[str]:
-        """Obter lista de fornecedores suportados."""
-        return list(self.parsers.keys())
-    
-    def add_custom_parser(self, provider: str, parser: BaseInvoiceParser):
-        """
-        Adicionar um parser personalizado.
-        
-        Args:
-            provider: Nome do fornecedor
-            parser: Instância do parser
-        """
-        self.parsers[provider.lower()] = parser
-        logger.info(f"Parser personalizado adicionado para: {provider}")
+        result = self.extract(pdf_path)
+        return result.to_dict()

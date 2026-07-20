@@ -1,250 +1,84 @@
 """
-Funções utilitárias para processamento de texto
+Text processing utilities
 """
 
 import re
-from typing import List, Dict, Optional, Tuple
-from datetime import datetime
-import unicodedata
+from typing import List, Dict, Optional
 
 
 def clean_text(text: str) -> str:
     """
-    Limpar texto: remover caracteres especiais, normalizar, etc.
+    Clean extracted text by removing extra whitespace and special characters.
     
     Args:
-        text: Texto a limpar
+        text: Raw extracted text
         
     Returns:
-        Texto limpo
+        Cleaned text
     """
     if not text:
         return ""
     
-    # Normalizar unicode
-    text = unicodedata.normalize('NFKD', text)
-    
-    # Remover caracteres de controlo
-    text = ''.join(char for char in text if unicodedata.category(char)[0] != 'C')
-    
-    # Substituir múltiplos espaços
+    # Remove multiple spaces and newlines
     text = re.sub(r'\s+', ' ', text)
+    
+    # Remove non-printable characters
+    text = re.sub(r'[^\x20-\x7E\n\r\t]', '', text)
     
     return text.strip()
 
 
-def normalize_nif(nif: str) -> Optional[str]:
+def normalize_text(text: str) -> str:
     """
-    Normalizar um NIF (9 dígitos).
+    Normalize text for pattern matching.
     
     Args:
-        nif: NIF a normalizar
+        text: Text to normalize
         
     Returns:
-        NIF normalizado (9 dígitos) ou None
+        Normalized text (lowercase, no extra spaces)
     """
-    if not nif:
-        return None
-    
-    # Extrair apenas dígitos
-    digits = re.sub(r'\D', '', nif)
-    
-    # Verificar se tem 9 dígitos
-    if len(digits) == 9:
-        return digits
-    
-    return None
-
-
-def normalize_invoice_number(invoice_number: str) -> str:
-    """
-    Normalizar número de fatura.
-    
-    Args:
-        invoice_number: Número de fatura a normalizar
-        
-    Returns:
-        Número de fatura normalizado
-    """
-    if not invoice_number:
+    if not text:
         return ""
     
-    # Remover espaços e caracteres especiais
-    invoice_number = re.sub(r'[\s\-\/]', '', invoice_number)
-    
-    return invoice_number.upper()
+    text = text.lower()
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 
-def parse_date(date_str: str, formats: List[str] = None) -> Optional[datetime]:
+def extract_numbers(text: str) -> List[str]:
     """
-    Converter string de data para objeto datetime.
+    Extract all numbers from text.
     
     Args:
-        date_str: String da data
-        formats: Lista de formatos a tentar (opcional)
+        text: Text to search
         
     Returns:
-        Objeto datetime ou None
+        List of found numbers as strings
     """
-    if not date_str:
-        return None
-    
-    if formats is None:
-        formats = [
-            "%d-%m-%Y",
-            "%d/%m/%Y",
-            "%Y-%m-%d",
-            "%Y/%m/%d",
-            "%d.%m.%Y",
-            "%d %m %Y",
-        ]
-    
-    for fmt in formats:
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
-    
-    return None
+    return re.findall(r'\d+[.,]?\d*', text)
 
 
-def format_date(date: datetime, fmt: str = "%Y-%m-%d") -> str:
+def extract_dates(text: str) -> List[str]:
     """
-    Formatar data como string.
+    Extract date patterns from text.
     
     Args:
-        date: Objeto datetime
-        fmt: Formato de saída
+        text: Text to search
         
     Returns:
-        String da data formatada
+        List of found date strings
     """
-    if not date:
-        return ""
+    # Common date patterns: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD
+    date_patterns = [
+        r'\d{2}/\d{2}/\d{4}',
+        r'\d{4}-\d{2}-\d{2}',
+        r'\d{2}-\d{2}-\d{4}',
+        r'\d{1,2}\s+[A-Za-z]{3}\s+\d{4}',
+    ]
     
-    return date.strftime(fmt)
-
-
-def extract_email(text: str) -> Optional[str]:
-    """
-    Extrair endereço de email de texto.
+    dates = []
+    for pattern in date_patterns:
+        dates.extend(re.findall(pattern, text))
     
-    Args:
-        text: Texto a procurar
-        
-    Returns:
-        Email encontrado ou None
-    """
-    pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
-    match = re.search(pattern, text)
-    
-    if match:
-        return match.group(0)
-    
-    return None
-
-
-def extract_phone(text: str) -> Optional[str]:
-    """
-    Extrair número de telefone de texto.
-    
-    Args:
-        text: Texto a procurar
-        
-    Returns:
-        Telefone encontrado ou None
-    """
-    # Padrão para telemóveis portugueses (9 dígitos)
-    pattern = r"\b9[1236]\d{7}\b|\b\+351\s*9[1236]\d{7}\b"
-    match = re.search(pattern, text)
-    
-    if match:
-        return match.group(0)
-    
-    return None
-
-
-def find_between(text: str, start: str, end: str) -> Optional[str]:
-    """
-    Extrair texto entre dois marcadores.
-    
-    Args:
-        text: Texto a procurar
-        start: Marcador de início
-        end: Marcador de fim
-        
-    Returns:
-        Texto entre os marcadores ou None
-    """
-    start_idx = text.find(start)
-    if start_idx == -1:
-        return None
-    
-    start_idx += len(start)
-    end_idx = text.find(end, start_idx)
-    
-    if end_idx == -1:
-        return None
-    
-    return text[start_idx:end_idx].strip()
-
-
-def find_after(text: str, marker: str) -> Optional[str]:
-    """
-    Extrair texto após um marcador.
-    
-    Args:
-        text: Texto a procurar
-        marker: Marcador
-        
-    Returns:
-        Texto após o marcador ou None
-    """
-    idx = text.find(marker)
-    if idx == -1:
-        return None
-    
-    return text[idx + len(marker):].strip()
-
-
-def find_before(text: str, marker: str) -> Optional[str]:
-    """
-    Extrair texto antes de um marcador.
-    
-    Args:
-        text: Texto a procurar
-        marker: Marcador
-        
-    Returns:
-        Texto antes do marcador ou None
-    """
-    idx = text.find(marker)
-    if idx == -1:
-        return None
-    
-    return text[:idx].strip()
-
-
-def split_by_keywords(text: str, keywords: List[str]) -> List[str]:
-    """
-    Dividir texto por palavras-chave.
-    
-    Args:
-        text: Texto a dividir
-        keywords: Lista de palavras-chave
-        
-    Returns:
-        Lista de secções
-    """
-    sections = []
-    start = 0
-    
-    for keyword in keywords:
-        idx = text.find(keyword, start)
-        if idx != -1:
-            sections.append(text[start:idx].strip())
-            start = idx
-    
-    sections.append(text[start:].strip())
-    
-    return [s for s in sections if s]
+    return dates

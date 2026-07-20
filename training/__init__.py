@@ -1,8 +1,8 @@
 """
-Training package - Sistema de treino para ensinar o programa a reconhecer faturas
+Training module for teaching the extractor new patterns
 """
 
-from .trainer import InvoiceTrainer
+from .trainer import Trainer
 from .patterns import PatternManager
 
-__all__ = ["InvoiceTrainer", "PatternManager"]
+__all__ = ['Trainer', 'PatternManager']

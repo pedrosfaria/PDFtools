@@ -1,9 +1,9 @@
 """
-PDF Extractor - Sistema de extração de dados de faturas de eletricidade
+PDF Extractor Module
+Core functionality for extracting text and data from PDF invoices.
 """
 
 from .extractor import PDFExtractor
-from .config import SUPPORTED_PROVIDERS
+from .config import Config
 
-__version__ = "1.0.0"
-__all__ = ["PDFExtractor", "SUPPORTED_PROVIDERS"]
+__all__ = ['PDFExtractor', 'Config']
