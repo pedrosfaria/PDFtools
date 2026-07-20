@@ -55,6 +55,7 @@ except Exception as e:
 
 import json
 import shutil
+import re
 
 # Configuracao da aplicacao
 app = Flask(__name__)
@@ -81,12 +82,23 @@ pattern_manager = PatternManager()
 # Configurar idioma padrao
 set_language('pt')  # Portugues por omissao
 
-# Variavel global para guardar o ficheiro atual
+# Variavel global para guardar o ficheiro atual e anotacoes
 CURRENT_FILE_INFO = {
     'filename': None,
     'filepath': None,
-    'text': None
+    'text': None,
+    'annotations': {}  # {field_name: [(start, end, text), ...]}
 }
+
+
+@app.before_request
+def before_request():
+    """Inicializar idioma da sessao antes de cada request."""
+    if TRANSLATION_AVAILABLE:
+        # Verificar se ha idioma na sessao
+        lang = session.get('language', 'pt')
+        if lang != get_language():
+            set_language(lang)
 
 
 def allowed_file(filename):
@@ -107,6 +119,94 @@ def get_current_text():
             pass
     
     return ''
+
+
+def get_current_annotations():
+    """Obter anotacoes atuais."""
+    return CURRENT_FILE_INFO.get('annotations', {})
+
+
+def clear_current_file():
+    """Limpar informacao do ficheiro atual."""
+    CURRENT_FILE_INFO['filename'] = None
+    CURRENT_FILE_INFO['filepath'] = None
+    CURRENT_FILE_INFO['text'] = None
+    CURRENT_FILE_INFO['annotations'] = {}
+
+
+def generate_highlighted_text(text, annotations):
+    """
+    Gerar HTML com texto e destaques das anotacoes.
+    
+    Args:
+        text: Texto original
+        annotations: Dicionario {field_name: [(start, end, text), ...]}
+        
+    Returns:
+        HTML com texto e destaques
+    """
+    if not text:
+        return "<p>Nenhum texto carregado</p>"
+    
+    # Cores para diferentes campos
+    field_colors = {
+        "invoice_number": "#FFD700",  # Amarelo
+        "issue_date": "#87CEFA",      # Azul claro
+        "due_date": "#87CEFA",        # Azul claro
+        "consumption_kwh": "#98FB98", # Verde claro
+        "total_amount": "#F08080",    # Vermelho claro
+        "client_name": "#DDA0DD",     # Roxo claro
+        "nif": "#FFA07A",            # Laranja claro
+    }
+    
+    # Criar uma lista de todos os destaques com suas posicoes
+    highlights = []
+    for ann_field, field_annotations in annotations.items():
+        color = field_colors.get(ann_field, "#FFFF99")  # Amarelo claro
+        for start, end, ann_text in field_annotations:
+            highlights.append({
+                'start': start,
+                'end': end,
+                'text': ann_text,
+                'field': ann_field,
+                'color': color
+            })
+    
+    # Ordenar por posicao inicial
+    highlights.sort(key=lambda h: h['start'])
+    
+    # Processar o texto e aplicar destaques
+    result_parts = []
+    last_pos = 0
+    
+    for highlight in highlights:
+        start = highlight['start']
+        end = highlight['end']
+        
+        # Adicionar texto antes do destaque
+        if last_pos < start:
+            result_parts.append(text[last_pos:start])
+        
+        # Adicionar o destaque
+        selected_text = text[start:end]
+        highlight_span = (f"<span class='highlight' style='background-color: {highlight['color']}; "
+                        f"padding: 2px 4px; border-radius: 3px;' "
+                        f"data-field='{highlight['field']}' data-start='{start}' data-end='{end}'>"
+                        f"{selected_text}</span>")
+        result_parts.append(highlight_span)
+        
+        last_pos = end
+    
+    # Adicionar texto restante
+    if last_pos < len(text):
+        result_parts.append(text[last_pos:])
+    
+    # Dividir em linhas preservando os destaques
+    html_text = ''.join(result_parts)
+    lines = html_text.split('\n')
+    html_lines = [f"<div style='white-space: pre-wrap; margin-bottom: 5px;'>{line}</div>" for line in lines]
+    
+    return '\n'.join(html_lines)
 
 
 @app.route('/')
@@ -163,16 +263,18 @@ def upload_file():
                     flash(_('No text could be extracted from the PDF. The file may be a scanned image.'), 'error')
                     return redirect(url_for('upload_file'))
                 
-                # Guardar informacao global (em vez de sessao)
+                # Guardar informacao global
                 CURRENT_FILE_INFO['filename'] = filename
                 CURRENT_FILE_INFO['filepath'] = str(filepath)
                 CURRENT_FILE_INFO['text'] = text
+                CURRENT_FILE_INFO['annotations'] = {}  # Limpar anotacoes para novo ficheiro
                 
                 # Guardar tambem na sessao para compatibilidade
                 session['current_file'] = filename
                 session['filepath'] = str(filepath)
                 session['extracted_text'] = text
                 session['current_filename'] = filename
+                session['annotations'] = {}
                 
                 # Ir diretamente para treino
                 flash(_('File uploaded successfully! Text extracted.'), 'success')
@@ -199,6 +301,9 @@ def train():
     # Obter texto (tentar global primeiro, depois sessao)
     extracted_text = get_current_text()
     current_filename = CURRENT_FILE_INFO.get('filename', '') or session.get('current_filename', '')
+    
+    # Obter anotacoes atuais
+    annotations = get_current_annotations()
     
     # Se nao houver texto, mostrar mensagem
     if not extracted_text:
@@ -229,17 +334,21 @@ def train():
             
             if field_name and text:
                 try:
-                    # Criar padrao e guardar
-                    pattern = Pattern(
-                        field_name=field_name,
-                        pattern=text,
-                        pattern_type="contains",
-                        provider="coopernico"
-                    )
-                    pattern_manager.add_pattern(field_name, pattern)
-                    flash(_('Pattern saved successfully!'), 'success')
+                    start = int(start) if start else 0
+                    end = int(end) if end else 0
+                    
+                    # Adicionar anotacao
+                    if field_name not in annotations:
+                        annotations[field_name] = []
+                    annotations[field_name].append((start, end, text))
+                    CURRENT_FILE_INFO['annotations'] = annotations
+                    
+                    # Guardar na sessao
+                    session['annotations'] = annotations
+                    
+                    flash(_('Annotation added successfully!'), 'success')
                 except Exception as e:
-                    flash(_('Error saving pattern: ') + str(e), 'error')
+                    flash(_('Error adding annotation: ') + str(e), 'error')
             else:
                 flash(_('Field and text are required'), 'error')
             
@@ -248,26 +357,94 @@ def train():
         elif action == 'remove_annotation':
             field_name = request.form.get('field_name')
             index = request.form.get('index')
-            # Implementar remocao se necessario
-            flash(_('Annotation removed'), 'info')
+            
+            if field_name and index is not None:
+                try:
+                    index = int(index)
+                    if field_name in annotations and 0 <= index < len(annotations[field_name]):
+                        del annotations[field_name][index]
+                        if not annotations[field_name]:
+                            del annotations[field_name]
+                        CURRENT_FILE_INFO['annotations'] = annotations
+                        session['annotations'] = annotations
+                        flash(_('Annotation removed successfully!'), 'success')
+                except Exception as e:
+                    flash(_('Error removing annotation: ') + str(e), 'error')
+            else:
+                flash(_('Invalid annotation data'), 'error')
+            
+            return redirect(url_for('train'))
+        
+        elif action == 'clear_annotations':
+            # Limpar anotacoes
+            CURRENT_FILE_INFO['annotations'] = {}
+            session['annotations'] = {}
+            annotations = {}
+            flash(_('All annotations cleared!'), 'success')
+            return redirect(url_for('train'))
+        
+        elif action == 'learn':
+            # Aprender padroes a partir das anotacoes
+            learned_count = 0
+            for field_name, field_annotations in annotations.items():
+                for start, end, text in field_annotations:
+                    try:
+                        pattern = Pattern(
+                            field_name=field_name,
+                            pattern=text,
+                            pattern_type="contains",
+                            provider="coopernico"
+                        )
+                        pattern_manager.add_pattern(field_name, pattern)
+                        learned_count += 1
+                    except Exception as e:
+                        flash(_('Error saving pattern for ') + field_name + ": " + str(e), 'error')
+            
+            if learned_count > 0:
+                flash(_('Patterns learned and saved successfully! ') + str(learned_count) + _(' patterns created.'), 'success')
+            else:
+                flash(_('No annotations to learn from.'), 'info')
+            
             return redirect(url_for('train'))
         
         elif action == 'test_extraction':
             # Redirecionar para pagina de teste
             return redirect(url_for('test_extraction'))
-        
-        elif action == 'clear_annotations':
-            # Limpar anotacoes
-            flash(_('All annotations cleared'), 'info')
-            return redirect(url_for('train'))
+    
+    # Obter sugestoes para campos nao anotados
+    suggestions = {}
+    annotated_fields = set(annotations.keys())
+    for field in fields:
+        if field.field_name not in annotated_fields:
+            # Obter sugestoes do pattern_manager
+            field_patterns = pattern_manager.get_field(field.field_name)
+            if field_patterns and field_patterns.patterns:
+                suggestions[field.field_name] = []
+                for pattern in field_patterns.patterns:
+                    # Tentar encontrar match no texto
+                    if pattern.pattern_type == "regex":
+                        try:
+                            for match in re.finditer(pattern.pattern, extracted_text, re.IGNORECASE):
+                                start, end = match.span()
+                                value = match.group(1) if match.groups() else match.group(0)
+                                suggestions[field.field_name].append({
+                                    "start": start,
+                                    "end": end,
+                                    "text": value,
+                                    "confidence": pattern.confidence,
+                                    "pattern": pattern.pattern
+                                })
+                                break  # Apenas uma sugestao por campo
+                        except:
+                            pass
     
     return render_template('training/train.html',
                          filename=current_filename,
                          provider="coopernico",
-                         highlighted_text=extracted_text,
-                         suggestions={},  # Vazio por agora
+                         highlighted_text=generate_highlighted_text(extracted_text, annotations),
+                         suggestions=suggestions,
                          fields=fields,
-                         annotations={},  # Vazio por agora
+                         annotations=annotations,
                          patterns=patterns,
                          current_language=get_language(),
                          supported_languages=SUPPORTED_LANGUAGES,
@@ -393,10 +570,12 @@ def load_example(filename):
             CURRENT_FILE_INFO['filename'] = filename
             CURRENT_FILE_INFO['filepath'] = str(dest_path)
             CURRENT_FILE_INFO['text'] = text
+            CURRENT_FILE_INFO['annotations'] = {}
             
             # Guardar na sessao tambem
             session['extracted_text'] = text
             session['current_filename'] = filename
+            session['annotations'] = {}
             flash(_('Example loaded successfully!'), 'success')
         
         return redirect(url_for('train'))
@@ -475,9 +654,7 @@ def clear_all():
         pattern_manager = PatternManager()
         
         # Limpar ficheiro atual
-        CURRENT_FILE_INFO['filename'] = None
-        CURRENT_FILE_INFO['filepath'] = None
-        CURRENT_FILE_INFO['text'] = None
+        clear_current_file()
         
         # Apagar ficheiros de exemplos
         examples_dir = Path('training/examples')
@@ -519,9 +696,7 @@ def clear_uploads():
                 f.unlink()
         
         # Limpar ficheiro atual
-        CURRENT_FILE_INFO['filename'] = None
-        CURRENT_FILE_INFO['filepath'] = None
-        CURRENT_FILE_INFO['text'] = None
+        clear_current_file()
         
         flash(_('Temporary files cleared successfully!'), 'success')
     except Exception as e:

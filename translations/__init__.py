@@ -78,6 +78,8 @@ def gettext(text: str) -> str:
     Returns:
         Texto traduzido
     """
+    global _current_translation
+    
     if _current_translation is None:
         set_language(_current_language)
     
@@ -96,6 +98,8 @@ def ngettext(singular: str, plural: str, n: int) -> str:
     Returns:
         Texto traduzido
     """
+    global _current_translation
+    
     if _current_translation is None:
         set_language(_current_language)
     
