@@ -15,8 +15,9 @@ class Pattern:
     type: str = "regex"  # or "contains"
     field: str = ""
     description: str = ""
+    group: int = 1  # Default group to capture
     
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -55,6 +56,14 @@ class PatternManager:
             {"pattern": r"vendor[\s:]*([a-z0-9\s]+)", "type": "regex"},
             {"pattern": "supplier", "type": "contains"},
         ],
+        "data_inicio": [
+            {"pattern": r"Período de faturação: (\d{2}/\d{2}/\d{4}) a (\d{2}/\d{2}/\d{4})", "type": "regex", "group": 1},
+            {"pattern": r"Período: (\d{2}/\d{2}/\d{4}) a (\d{2}/\d{2}/\d{4})", "type": "regex", "group": 1},
+        ],
+        "data_fim": [
+            {"pattern": r"Período de faturação: (\d{2}/\d{2}/\d{4}) a (\d{2}/\d{2}/\d{4})", "type": "regex", "group": 2},
+            {"pattern": r"Período: (\d{2}/\d{2}/\d{4}) a (\d{2}/\d{2}/\d{4})", "type": "regex", "group": 2},
+        ],
     }
     
     def __init__(self, pattern_file: str = "training/patterns.json"):
@@ -67,7 +76,7 @@ class PatternManager:
         self.pattern_file = pattern_file
         self.patterns = self._load_patterns()
     
-    def _load_patterns(self) -> Dict[str, List[Dict[str, str]]]:
+    def _load_patterns(self) -> Dict[str, List[Dict[str, Any]]]:
         """Load patterns from file or use defaults"""
         if os.path.exists(self.pattern_file):
             try:
@@ -88,7 +97,7 @@ class PatternManager:
             print(f"Error saving patterns: {e}")
             return False
     
-    def add_pattern(self, field: str, pattern: str, pattern_type: str = "regex", description: str = "") -> bool:
+    def add_pattern(self, field: str, pattern: str, pattern_type: str = "regex", description: str = "", group: int = 1) -> bool:
         """
         Add a new pattern for a field.
         
@@ -97,6 +106,7 @@ class PatternManager:
             pattern: The pattern string
             pattern_type: "regex" or "contains"
             description: Optional description
+            group: Group to capture (for regex patterns)
             
         Returns:
             True if added successfully
@@ -107,19 +117,21 @@ class PatternManager:
         new_pattern = {
             "pattern": pattern,
             "type": pattern_type,
-            "description": description
+            "description": description,
+            "group": group
         }
         
         # Check if pattern already exists
         for existing in self.patterns[field]:
             if (existing.get("pattern") == pattern and 
-                existing.get("type") == pattern_type):
+                existing.get("type") == pattern_type and
+                existing.get("group", 1) == group):
                 return False  # Pattern already exists
         
         self.patterns[field].append(new_pattern)
         return True
     
-    def remove_pattern(self, field: str, pattern: str, pattern_type: str = "regex") -> bool:
+    def remove_pattern(self, field: str, pattern: str, pattern_type: str = "regex", group: int = 1) -> bool:
         """
         Remove a pattern from a field.
         
@@ -127,6 +139,7 @@ class PatternManager:
             field: Field name
             pattern: Pattern string to remove
             pattern_type: Pattern type
+            group: Group to match
             
         Returns:
             True if removed successfully
@@ -136,13 +149,14 @@ class PatternManager:
         
         for i, existing in enumerate(self.patterns[field]):
             if (existing.get("pattern") == pattern and 
-                existing.get("type") == pattern_type):
+                existing.get("type") == pattern_type and
+                existing.get("group", 1) == group):
                 self.patterns[field].pop(i)
                 return True
         
         return False
     
-    def get_patterns_for_field(self, field: str) -> List[Dict[str, str]]:
+    def get_patterns_for_field(self, field: str) -> List[Dict[str, Any]]:
         """Get all patterns for a specific field"""
         return self.patterns.get(field, [])
     

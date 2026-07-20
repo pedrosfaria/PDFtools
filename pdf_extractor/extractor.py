@@ -49,7 +49,7 @@ class PDFExtractor:
         self.config = config or Config.load()
         self.patterns = self._load_patterns()
     
-    def _load_patterns(self) -> Dict[str, List[Dict[str, str]]]:
+    def _load_patterns(self) -> Dict[str, List[Dict[str, Any]]]:
         """Load extraction patterns from file"""
         patterns = {}
         if os.path.exists(self.config.PATTERN_FILE):
@@ -63,8 +63,11 @@ class PDFExtractor:
                             normalized_patterns = []
                             for p in field_patterns:
                                 if isinstance(p, str):
-                                    normalized_patterns.append({"pattern": p, "type": "regex"})
+                                    normalized_patterns.append({"pattern": p, "type": "regex", "group": 1})
                                 else:
+                                    # Ensure group exists
+                                    if "group" not in p:
+                                        p["group"] = 1
                                     normalized_patterns.append(p)
                             patterns[field] = normalized_patterns
                         else:
@@ -117,15 +120,23 @@ class PDFExtractor:
             if isinstance(pattern_info, str):
                 pattern = pattern_info
                 pattern_type = "regex"
+                group = 1
             else:
                 pattern = pattern_info.get("pattern", pattern_info)
                 pattern_type = pattern_info.get("type", "regex")
+                group = pattern_info.get("group", 1)
             
             if pattern_type == "regex":
                 try:
                     match = re.search(pattern, normalized_text, re.IGNORECASE)
                     if match:
-                        return match.group(1) if match.groups() else match.group(0)
+                        # Return the specified group or default to first group
+                        if group < len(match.groups()) + 1:
+                            return match.group(group)
+                        elif match.groups():
+                            return match.group(1)
+                        else:
+                            return match.group(0)
                 except re.error:
                     continue
             
