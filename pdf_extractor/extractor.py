@@ -10,7 +10,6 @@ from dataclasses import dataclass
 
 from .config import Config
 from .utils import extract_text_from_pdf, perform_ocr_on_pdf, clean_text, normalize_text
-from training.patterns import PatternManager
 
 
 @dataclass
@@ -48,7 +47,31 @@ class PDFExtractor:
             config: Configuration object (uses defaults if None)
         """
         self.config = config or Config.load()
-        self.pattern_manager = PatternManager(self.config.PATTERN_FILE)
+        self.patterns = self._load_patterns()
+    
+    def _load_patterns(self) -> Dict[str, List[Dict[str, str]]]:
+        """Load extraction patterns from file"""
+        patterns = {}
+        if os.path.exists(self.config.PATTERN_FILE):
+            try:
+                with open(self.config.PATTERN_FILE, 'r', encoding='utf-8') as f:
+                    loaded_patterns = json.load(f)
+                    # Ensure patterns are in the correct format (list of dicts)
+                    for field, field_patterns in loaded_patterns.items():
+                        if isinstance(field_patterns, list):
+                            # Convert string patterns to dict format
+                            normalized_patterns = []
+                            for p in field_patterns:
+                                if isinstance(p, str):
+                                    normalized_patterns.append({"pattern": p, "type": "regex"})
+                                else:
+                                    normalized_patterns.append(p)
+                            patterns[field] = normalized_patterns
+                        else:
+                            patterns[field] = field_patterns
+            except Exception as e:
+                print(f"Error loading patterns: {e}")
+        return patterns
     
     def _extract_text(self, pdf_path: str) -> Optional[str]:
         """
@@ -84,15 +107,19 @@ class PDFExtractor:
         Returns:
             Extracted value or None
         """
-        patterns = self.pattern_manager.get_patterns_for_field(field_name)
-        if not patterns:
+        if field_name not in self.patterns:
             return None
         
         normalized_text = normalize_text(text)
         
-        for pattern_info in patterns:
-            pattern = pattern_info.get("pattern", "")
-            pattern_type = pattern_info.get("type", "regex")
+        for pattern_info in self.patterns[field_name]:
+            # Handle both string and dict patterns
+            if isinstance(pattern_info, str):
+                pattern = pattern_info
+                pattern_type = "regex"
+            else:
+                pattern = pattern_info.get("pattern", pattern_info)
+                pattern_type = pattern_info.get("type", "regex")
             
             if pattern_type == "regex":
                 try:
@@ -101,11 +128,12 @@ class PDFExtractor:
                         return match.group(1) if match.groups() else match.group(0)
                 except re.error:
                     continue
+            
             elif pattern_type == "contains":
-                if pattern.lower() in normalized_text:
-                    start = normalized_text.find(pattern.lower())
+                if str(pattern).lower() in normalized_text:
+                    start = normalized_text.find(str(pattern).lower())
                     if start != -1:
-                        remaining = normalized_text[start + len(pattern):]
+                        remaining = normalized_text[start + len(str(pattern)):]
                         lines = remaining.split('\n')
                         if lines:
                             return lines[0].strip()
@@ -123,13 +151,10 @@ class PDFExtractor:
             Dictionary of field names to extracted values
         """
         fields = {}
-        all_fields = self.pattern_manager.get_all_fields()
-        
-        for field_name in all_fields:
+        for field_name in self.patterns:
             value = self._extract_field(text, field_name)
             if value:
                 fields[field_name] = value
-        
         return fields
     
     def extract(self, pdf_path: str) -> ExtractionResult:
@@ -159,9 +184,8 @@ class PDFExtractor:
         # Calculate confidence (simple heuristic for now)
         confidence = {}
         for field, value in extracted_fields.items():
-            patterns = self.pattern_manager.get_patterns_for_field(field)
-            if patterns:
-                confidence[field] = 1.0 / len(patterns)  # Simple confidence based on pattern count
+            if field in self.patterns:
+                confidence[field] = 1.0 / len(self.patterns[field])
             else:
                 confidence[field] = 0.5
         
