@@ -1,0 +1,55 @@
+{% extends "training/base_train.html" %}
+
+{% block title %}{{ _('Upload') }} - {{ _('Training Mode') }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-upload"></i> {{ _('Upload PDF') }}
+            </div>
+            <div class="card-body">
+                <p class="lead mb-4">
+                    {{ _('Select a PDF file of an invoice to start training.') }}
+                </p>
+
+                <form method="POST" action="{{ url_for('upload_file') }}" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label for="file" class="form-label">
+                            <i class="fas fa-file-pdf text-danger"></i> {{ _('Select PDF file') }}
+                        </label>
+                        <input class="form-control form-control-lg" type="file" name="file" id="file" 
+                               accept=".pdf,application/pdf" required>
+                        <div class="form-text">
+                            {{ _('Only PDF files are accepted. Maximum size: 50MB.') }}
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-upload"></i> {{ _('Upload and Start Training') }}
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h6><i class="fas fa-lightbulb text-primary"></i> {{ _('Tips') }}:</h6>
+                    <ul>
+                        <li>{{ _('Use clear invoices from Coopernico') }}</li>
+                        <li>{{ _('Text-based PDFs work best (not scans)') }}</li>
+                        <li>{{ _('For scanned invoices, enable OCR in the main app') }}</li>
+                        <li>{{ _('The more invoices you train with, the better the results') }}</li>
+                    </ul>
+                </div>
+
+                <div class="mt-4 text-center">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> {{ _('Back') }}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

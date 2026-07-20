@@ -1,0 +1,19 @@
+# Dependências para a versão web do PDF Invoice Extractor
+
+# Dependências básicas (já em requirements.txt)
+-pdfplumber>=0.10.0
+pandas>=2.0.0
+openpyxl>=3.0.0
+python-dotenv>=1.0.0
+
+# Dependências para OCR (opcional)
+pytesseract>=0.3.10
+Pillow>=10.0.0
+
+# Dependências para a aplicação web
+Flask>=3.0.0
+Werkzeug>=3.0.0
+Jinja2>=3.0.0
+
+# Para build do executável
+pyinstaller>=6.0.0

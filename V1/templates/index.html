@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Início - PDF Invoice Extractor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto text-center">
+        <h1 class="display-4 mb-4">
+            <i class="fas fa-file-invoice text-primary"></i> Extractor de Faturas
+        </h1>
+        <p class="lead mb-5">
+            Extraia dados de faturas de eletricidade (Coopérnico, EDP, Galp, Ibersol) 
+            automaticamente a partir de ficheiros PDF.
+        </p>
+
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-upload fa-3x text-primary"></i>
+                        </div>
+                        <h5 class="card-title">Upload de Faturas</h5>
+                        <p class="card-text">Carregue os seus ficheiros PDF para extrair os dados automaticamente.</p>
+                        <a href="{{ url_for('upload_file') }}" class="btn btn-primary">
+                            <i class="fas fa-file-upload"></i> Carregar Faturas
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-file-csv fa-3x text-success"></i>
+                        </div>
+                        <h5 class="card-title">Exportar Dados</h5>
+                        <p class="card-text">Exporte os dados extraídos para CSV, Excel ou JSON.</p>
+                        <a href="{{ url_for('upload_file') }}" class="btn btn-success">
+                            <i class="fas fa-table"></i> Processar e Exportar
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-vial fa-3x text-info"></i>
+                        </div>
+                        <h5 class="card-title">Testar</h5>
+                        <p class="card-text">Experimente com dados de exemplo para ver como funciona.</p>
+                        <a href="{{ url_for('test') }}" class="btn btn-info">
+                            <i class="fas fa-play"></i> Testar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-5">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-lightbulb"></i> Como funciona
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-step-forward text-primary"></i> Passo 1: Upload</h6>
+                        <p>Carregue os seus ficheiros PDF de faturas de eletricidade.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-cog text-primary"></i> Passo 2: Processamento</h6>
+                        <p>O sistema identifica o fornecedor e extrai os dados automaticamente.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-download text-primary"></i> Passo 3: Exportar</h6>
+                        <p>Receba os dados em formato CSV, Excel ou JSON.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <i class="fas fa-check-circle text-success"></i> Fornecedores Suportados
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 col-6 mb-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-bolt me-2 text-warning"></i>
+                            <span>EDP</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-bolt me-2 text-success"></i>
+                            <span>Galp</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-bolt me-2 text-info"></i>
+                            <span>Ibersol</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-bolt me-2 text-primary"></i>
+                            <span>Coopérnico</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

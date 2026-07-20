@@ -1,0 +1,167 @@
+{% extends "training/base_train.html" %}
+
+{% block title %}Exemplos de Treino{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-list"></i> Exemplos de Treino Guardados</h2>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-database"></i> Todos os Exemplos</span>
+                <a href="{{ url_for('upload_file') }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> Adicionar Novo
+                </a>
+            </div>
+            <div class="card-body">
+                {% if examples %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Ficheiro</th>
+                                <th>Fornecedor</th>
+                                <th>Data</th>
+                                <th>Campos</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for example in examples %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ example.filename }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ example.provider|upper }}</span>
+                                </td>
+                                <td>{{ example.created_at[:10] }}</td>
+                                <td>
+                                    <span class="badge bg-info">
+                                        {{ example.field_annotations|length }} campos
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('load_example', filename=example.filename) }}" 
+                                       class="btn btn-sm btn-outline-primary" title="Carregar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{{ url_for('delete_example', filename=example.filename) }}" 
+                                       class="btn btn-sm btn-outline-danger" title="Apagar">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4">
+                                    <strong>Total:</strong> {{ examples|length }} exemplos
+                                </td>
+                                <td colspan="2">
+                                    <strong>Total de anotações:</strong> 
+                                    {% set total_annotations = 0 %}
+                                    {% for example in examples %}
+                                        {% set total_annotations = total_annotations + example.field_annotations|length %}
+                                    {% endfor %}
+                                    {{ total_annotations }}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                
+                <div class="mt-3">
+                    <form method="POST" action="{{ url_for('clear_all') }}" class="d-inline">
+                        <button type="submit" class="btn btn-danger" 
+                                onclick="return confirm('Tem a certeza que quer apagar TODOS os exemplos de treino? Esta ação não pode ser desfeita.')">
+                            <i class="fas fa-trash"></i> Apagar Todos os Exemplos
+                        </button>
+                    </form>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                    <h5>Nenhum exemplo de treino guardado ainda</h5>
+                    <p class="text-muted">
+                        Comece por carregar uma fatura e treinar o programa.
+                    </p>
+                    <a href="{{ url_for('upload_file') }}" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Carregar Primeira Fatura
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <i class="fas fa-chart-line"></i> Estatísticas de Treino
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-primary">{{ examples|length }}</h3>
+                                <p class="card-text">Exemplos de treino</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-success">
+                                    {% set total_annotations = 0 %}
+                                    {% for example in examples %}
+                                        {% set total_annotations = total_annotations + example.field_annotations|length %}
+                                    {% endfor %}
+                                    {{ total_annotations }}
+                                </h3>
+                                <p class="card-text">Anotações totais</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-info">
+                                    {% set unique_fields = set() %}
+                                    {% for example in examples %}
+                                        {% for field in example.field_annotations.keys() %}
+                                            {% set _ = unique_fields.add(field) %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                    {{ unique_fields|length }}
+                                </h3>
+                                <p class="card-text">Campos únicos anotados</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-warning">
+                                    {% set providers = set() %}
+                                    {% for example in examples %}
+                                        {% set _ = providers.add(example.provider) %}
+                                    {% endfor %}
+                                    {{ providers|length }}
+                                </h3>
+                                <p class="card-text">Fornecedores treinados</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

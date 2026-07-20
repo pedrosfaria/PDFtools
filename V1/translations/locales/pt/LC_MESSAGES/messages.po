@@ -1,0 +1,263 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PDF Invoice Extractor 1.0\n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"PO-Revision-Date: 2024-01-01 00:00+0000\n"
+"Last-Translator: Pedro Faria <pedro@faria.pt>\n"
+"Language-Team: Portugues\n"
+"Language: pt\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+# Interface
+msgid "PDF Invoice Extractor"
+msgstr "PDF Invoice Extractor"
+
+msgid "Training Mode"
+msgstr "Modo de Treino"
+
+msgid "Upload"
+msgstr "Carregar"
+
+msgid "Train"
+msgstr "Treinar"
+
+msgid "Test"
+msgstr "Testar"
+
+msgid "About"
+msgstr "Sobre"
+
+msgid "Home"
+msgstr "Inicio"
+
+msgid "Examples"
+msgstr "Exemplos"
+
+# Mensagens
+msgid "No file selected"
+msgstr "Nenhum ficheiro selecionado"
+
+msgid "File not found"
+msgstr "Ficheiro nao encontrado"
+
+msgid "Invalid file type. Only PDF allowed."
+msgstr "Tipo de ficheiro invalido. Apenas PDF e permitido."
+
+msgid "File uploaded successfully!"
+msgstr "Ficheiro carregado com sucesso!"
+
+msgid "Error loading file"
+msgstr "Erro a carregar ficheiro"
+
+msgid "Annotation added!"
+msgstr "Annotacao adicionada!"
+
+msgid "Annotation removed!"
+msgstr "Annotacao removida!"
+
+msgid "All annotations cleared!"
+msgstr "Todas as anotacoes foram removidas!"
+
+msgid "Patterns learned and saved!"
+msgstr "Padroes aprendidos e guardados!"
+
+msgid "No patterns to export!"
+msgstr "Nenhum padrao para exportar!"
+
+msgid "Patterns imported successfully!"
+msgstr "Padroes importados com sucesso!"
+
+msgid "All training data deleted!"
+msgstr "Todos os dados de treino foram apagados!"
+
+msgid "No training examples saved yet."
+msgstr "Nenhum exemplo de treino guardado ainda."
+
+msgid "Start by uploading an invoice."
+msgstr "Comece por carregar uma fatura."
+
+# Campos de faturas
+msgid "Invoice Number"
+msgstr "Nº Fatura"
+
+msgid "Issue Date"
+msgstr "Data Emissao"
+
+msgid "Due Date"
+msgstr "Data Vencimento"
+
+msgid "Consumption Period Start"
+msgstr "Inicio Periodo"
+
+msgid "Consumption Period End"
+msgstr "Fim Periodo"
+
+msgid "Consumption (kWh)"
+msgstr "Consumo (kWh)"
+
+msgid "Power (kVA)"
+msgstr "Potencia (kVA)"
+
+msgid "Price/kWh (€)"
+msgstr "Preco/kWh (€)"
+
+msgid "Energy Cost (€)"
+msgstr "Custo Energia (€)"
+
+msgid "Network Cost (€)"
+msgstr "Custo Rede (€)"
+
+msgid "VAT Rate (%)"
+msgstr "Taxa IVA (%)"
+
+msgid "VAT Value (€)"
+msgstr "Valor IVA (€)"
+
+msgid "Total Amount (€)"
+msgstr "Total a Pagar (€)"
+
+msgid "Client Name"
+msgstr "Nome Cliente"
+
+msgid "NIF"
+msgstr "NIF"
+
+msgid "Client Number"
+msgstr "Nº Cliente"
+
+msgid "Address"
+msgstr "Morada"
+
+msgid "Postal Code"
+msgstr "Codigo Postal"
+
+msgid "City"
+msgstr "Localidade"
+
+msgid "Payment Method"
+msgstr "Metodo Pagamento"
+
+msgid "Payment Reference"
+msgstr "Referencia Pagamento"
+
+msgid "Meter Number"
+msgstr "Nº Contador"
+
+msgid "Current Reading"
+msgstr "Leitura Atual"
+
+msgid "Previous Reading"
+msgstr "Leitura Anterior"
+
+msgid "Reading Date"
+msgstr "Data Leitura"
+
+# Tipos de dados
+msgid "string"
+msgstr "texto"
+
+msgid "number"
+msgstr "numero"
+
+msgid "date"
+msgstr "data"
+
+msgid "amount"
+msgstr "valor"
+
+# Fornecedores
+msgid "EDP"
+msgstr "EDP"
+
+msgid "Galp"
+msgstr "Galp"
+
+msgid "Ibersol"
+msgstr "Ibersol"
+
+msgid "Coopernico"
+msgstr "Coopernico"
+
+# Botoes e acoes
+msgid "Upload PDF"
+msgstr "Carregar PDF"
+
+msgid "Load File"
+msgstr "Carregar Ficheiro"
+
+msgid "Associate with Field"
+msgstr "Associar a Campo"
+
+msgid "Learn Patterns"
+msgstr "Aprender Padroes"
+
+msgid "Test Extraction"
+msgstr "Testar Extracao"
+
+msgid "Clear All"
+msgstr "Limpar Tudo"
+
+msgid "Export Patterns"
+msgstr "Exportar Padroes"
+
+msgid "Import Patterns"
+msgstr "Importar Padroes"
+
+msgid "Delete All"
+msgstr "Apagar Tudo"
+
+# Dicas
+msgid "Start with clear invoices"
+msgstr "Comece com faturas claras"
+
+msgid "Select precisely"
+msgstr "Selecione com precisao"
+
+msgid "Train with multiple examples"
+msgstr "Treine com multiplos exemplos"
+
+msgid "Check results"
+msgstr "Verifique os resultados"
+
+msgid "Use automatic suggestions"
+msgstr "Use sugestoes automaticas"
+
+# Estatisticas
+msgid "Training Examples"
+msgstr "Exemplos de Treino"
+
+msgid "Total Annotations"
+msgstr "Annotacoes Totais"
+
+msgid "Unique Fields"
+msgstr "Campos Unicos"
+
+msgid "Providers Trained"
+msgstr "Fornecedores Treinados"
+
+msgid "Fields Extracted"
+msgstr "Campos Extraidos"
+
+msgid "Required Fields"
+msgstr "Campos Obrigatorios"
+
+msgid "Missing Fields"
+msgstr "Campos em Falta"
+
+msgid "Success Rate"
+msgstr "Taxa de Sucesso"
+
+# Mensagens de erro
+msgid "Error"
+msgstr "Erro"
+
+msgid "Success"
+msgstr "Sucesso"
+
+msgid "Warning"
+msgstr "Aviso"
+
+msgid "Info"
+msgstr "Informacao"
