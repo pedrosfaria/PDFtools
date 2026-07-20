@@ -1,3 +1,3 @@
 """
-Testes para o PDF Extractor
+Tests for PDF Extractor
 """
